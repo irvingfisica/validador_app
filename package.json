@@ -1,0 +1,24 @@
+{
+  "name": "validador",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "vite": "^8.0.14"
+  },
+  "dependencies": {
+    "@popperjs/core": "^2.11.8",
+    "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-dialog": "^2.7.1",
+    "ag-grid-community": "^35.3.0",
+    "bootstrap": "^5.3.8",
+    "d3": "^7.9.0"
+  }
+}

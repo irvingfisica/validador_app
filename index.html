@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Herramientas de limpieza y validación</title>
+    
+  </head>
+
+  <body>
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-2" id="sidebar">
+                    <div id="barra">
+                        <div id="herramientas" class="d-grid gap-2">
+                            <button
+                                class="btn btn-primary tools"
+                                type="button"
+                                id="cargarTool"
+                                data-bs-toggle="button"
+                            >
+                                Cargar archivo
+                            </button>
+                            <button
+                                class="btn btn-primary tools"
+                                type="button"
+                                id="validacionTool"
+                                disabled
+                                data-bs-toggle="button"
+                            >
+                                Validación de columnas
+                            </button>
+                            <button
+                                class="btn btn-primary tools"
+                                type="button"
+                                id="categosTool"
+                                disabled
+                                data-bs-toggle="button"
+                            >
+                                Edición de valores
+                            </button>
+                            <hr />
+                            <button
+                                class="btn btn-success"
+                                type="buton"
+                                id="descargaTool"
+                                disabled
+                            >
+                                Exportar a CSV
+                            </button>
+                        </div>
+                        <div id="stata">
+                            <div class="mt-2 text-muted small">
+                                <p>
+                                    <span><strong>Estatus: </strong></span
+                                    ><br />
+                                    <span
+                                        id="spinner"
+                                        class="spinner-border spinner-border-sm me-2 d-none"
+                                    ></span>
+                                    <span id="status">Sin archivo cargado</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-10" id="mainContent">
+                    <div class="row" id="mesaTrabajo"></div>
+                </div>
+            </div>
+        </div>
+        <div class="modal" tabindex="-1" id="modal">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalTitle"></h5>
+                        <button
+                            type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"
+                        ></button>
+                    </div>
+                    <div class="modal-body" id="modalBody">
+                        <p>Modal body text goes here.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div
+            class="toast-container position-fixed top-0 end-0 p-3"
+            id="toast-container"
+        ></div>
+    <script type="module" src="/src/main.js" defer></script>
+  </body>
+</html>
