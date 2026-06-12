@@ -23,19 +23,21 @@ export function intface() {
     );
   desc.append("p").html("Comienza cargando un archivo.");
 
-  const dropd = contenedor.append("div").attr("class", "col-md-12");
+  const dropd = contenedor.append("div").attr("class", "row");
 
   const drop = dropd
     .append("div")
     .attr("id", "dropZone")
-    .attr("class", "drop-zone");
+    .attr("class", "drop-zone col-md-12");
   drop.append("p").html("Arrastra un CSV.");
 
+  dropd.append("div")
+        .attr("id","errorZone").attr("class","col-md-12 mt-3");
 
   const framec = dropd
     .append("div")
     .attr("id", "gridBlock")
-    .attr("class", "col-md-12 bloque");
+    .attr("class", "col-md-12 bloque mt-5");
 
 const appWindow = getCurrentWindow();
 
@@ -73,6 +75,13 @@ appWindow.onDragDropEvent(async (event) => {
 
         Object.assign(window.appState, reporte);
 
+        if (window.appState.caracteres_corruptos.length > 0) {
+            const enczone = d3.select("#errorZone");
+
+            enczone.append("strong").html("Se detectaron caracteres extraños (es necesario revisar el archivo): ");
+            enczone.append("span").attr("class","redc")
+                .html(window.appState.caracteres_corruptos.reduce((a,b) => a + b.caracter + ", ", " "));
+        }
 
         const muestra = await invoke("obtener_bloque",{startRow: 0, pageSize: 10});
         console.log(muestra);
@@ -101,6 +110,14 @@ appWindow.onDragDropEvent(async (event) => {
     d3.select("#dropZone p").html(
       `Archivo actual: <strong>${window.appState.file}</strong>`,
     );
+
+    if (window.appState.caracteres_corruptos.length > 0) {
+            const enczone = d3.select("#errorZone");
+
+            enczone.append("strong").html("Se detectaron caracteres extraños (es necesario revisar el archivo): ");
+            enczone.attr("class","redc")
+                .html(window.appState.caracteres_corruptos.reduce((a,b) => a + b.caracter + ", ", " "));
+        }
 
     d3.select("#validacionTool").property("disabled", false);
     d3.select("#incidenciasTool").property("disabled", false);

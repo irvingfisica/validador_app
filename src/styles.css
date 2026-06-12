@@ -200,3 +200,8 @@ span .Invalido {
     background-color: #fff3cd;
     font-weight: bold;
 }
+
+.redc {
+    color: red;
+    font-weight: 600;
+}
