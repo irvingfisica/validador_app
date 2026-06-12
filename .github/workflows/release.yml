@@ -16,12 +16,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            args: '--target aarch64-apple-darwin'
           - platform: 'macos-latest' # for Intel based macs.
             args: '--target x86_64-apple-darwin'
-          - platform: 'windows-latest'
-            args: ''
 
     runs-on: ${{ matrix.platform }}
 
@@ -51,3 +47,4 @@ jobs:
           releaseName: "Validador PNDA ${{ github.ref_name }}"
           releaseDraft: true
           prerelease: false
+          args: ${{ matrix.args }}
