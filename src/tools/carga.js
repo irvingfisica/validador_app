@@ -32,7 +32,7 @@ export function intface() {
   drop.append("p").html("Arrastra un CSV.");
 
   dropd.append("div")
-        .attr("id","errorZone").attr("class","col-md-12 mt-3");
+        .attr("id","errorZone").attr("class","col-md-12 mt-3").html("");
 
   const framec = dropd
     .append("div")
@@ -46,6 +46,9 @@ appWindow.onDragDropEvent(async (event) => {
     d3.select("#dropZone").classed("dragover", true);
   } else if (event.payload.type === 'drop') {
     d3.select("#dropZone").classed("dragover", false);
+
+    const enczone = d3.select("#errorZone");
+    enczone.html("");
     
     const rutaAbsoluta = event.payload.paths[0];
     window.appState.file = rutaAbsoluta;
@@ -77,6 +80,7 @@ appWindow.onDragDropEvent(async (event) => {
 
         if (window.appState.caracteres_corruptos.length > 0) {
             const enczone = d3.select("#errorZone");
+            enczone.html("");
 
             enczone.append("strong").html("Se detectaron caracteres extraños (es necesario revisar el archivo): ");
             enczone.append("span").attr("class","redc")
@@ -113,9 +117,10 @@ appWindow.onDragDropEvent(async (event) => {
 
     if (window.appState.caracteres_corruptos.length > 0) {
             const enczone = d3.select("#errorZone");
+            enczone.html("");
 
             enczone.append("strong").html("Se detectaron caracteres extraños (es necesario revisar el archivo): ");
-            enczone.attr("class","redc")
+            enczone.append("span").attr("class","redc")
                 .html(window.appState.caracteres_corruptos.reduce((a,b) => a + b.caracter + ", ", " "));
         }
 
