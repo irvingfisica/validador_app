@@ -206,6 +206,9 @@ async function colcategos(e,d) {
 
     d3.select("#botprom").on("click", async () => {
 
+        utils.setStatus("Procesando cambios...");
+        utils.showSpinner();
+
         await invoke("cambiar_valores", {
             columna: d.nombre,
             cambios: cambios
@@ -214,6 +217,9 @@ async function colcategos(e,d) {
         grid.mostrarGrid("#gridBlock");
 
         herramienta_columnas("#colBlock");
+
+        utils.setStatus("Cambios realizados");
+        utils.hideSpinner();
 
     });
 }

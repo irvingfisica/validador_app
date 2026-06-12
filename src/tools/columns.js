@@ -52,6 +52,9 @@ async function promover() {
 
     });
 
+    utils.setStatus("Procesando cambios...");
+    utils.showSpinner();
+
     console.log(instrc);
     const respuesta = await invoke("transformar",{transvec: instrc});
     console.log(respuesta);
@@ -62,7 +65,8 @@ async function promover() {
     grid.mostrarGrid("#gridBlock");
     herramienta_tabla("#colBlock");
     
-    d3.select("#colResult")
+    utils.setStatus("Cambios realizados");
+    utils.hideSpinner();
 }
 
 async function herramienta_tabla(selector) {
