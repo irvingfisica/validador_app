@@ -9,6 +9,8 @@ on:
 
 permissions:
   contents: write
+  packages: write
+  actions: write
 
 jobs:
   publish-tauri:
