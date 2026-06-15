@@ -228,14 +228,13 @@ async fn leer_csv(ruta: String, state: State<'_, ContenedorDatos>) -> Result<Rep
             .with_dtype_overwrite(Some(Arc::new(types)))
         ).finish().map_err(|e| format!("No se pudo procesar el texto: {}", e))?;
 
-/*         Esta parte es muy lenta, solo asegurarse que al exportar se haga trim sobre todos los datos
-            df = df.lazy()
-            .with_columns([
-                col("*").str().strip_chars(lit(" "))
-            ])  */
+        df = df.lazy()
+        .with_columns([
+            col("*").str().strip_chars(lit(" "))
+        ]).collect().map_err(|e| format!("Error limpiando espacios extra: {}", e))?;
 
-        //df = df.lazy().filter(any_horizontal([col("*").is_not_null().and(col("*").neq(lit("")))]).map_err(|_|"Error en el filtrado de filas vacías")?)
-        //.collect().map_err(|e| format!("Error limpiando filas vacías: {}", e))?;
+        df = df.lazy().filter(any_horizontal([col("*").is_not_null().and(col("*").neq(lit("")))]).map_err(|_|"Error en el filtrado de filas vacías")?)
+        .collect().map_err(|e| format!("Error limpiando filas vacías: {}", e))?;
 
         df = castear_frame(df, TipoColumna::Fecha);
         df = castear_frame(df, TipoColumna::Numero);
@@ -250,7 +249,7 @@ async fn leer_csv(ruta: String, state: State<'_, ContenedorDatos>) -> Result<Rep
     let columnas: Vec<String> = df.get_column_names().iter().map(|s| s.to_string()).collect();
     let total_filas = df.height();
 
-    validar_columnas(columnas.clone()).await?;
+    //validar_columnas(columnas.clone()).await?;
 
     let mut guardado = state.dataframe.lock().map_err(|_| "Error al bloquear el estado")?;
     *guardado = Some(df);
@@ -362,9 +361,9 @@ async fn obtener_bloque(start_row: i64, page_size: i64,state: State<'_, Contened
 
 #[tauri::command]
 async fn validar_columnas(columnas: Vec<String>) -> Result<Value, String> {
-    if columnas.iter().any(|x| x.contains("_duplicate_") || x == "") {
+/*     if columnas.iter().any(|x| x.contains("_duplicate_") || x == "") {
         return Err("Hay columnas vacías o duplicadas".to_string())
-    };
+    }; */
 
     let mut validacion: Vec<ValidacionCadena> = columnas.iter().map(|col| validar_cadena(col)).collect();
 
@@ -571,7 +570,7 @@ fn validar_cadena(cadena: &str) -> ValidacionCadena {
 
     let prohibidas = ["el","la","los","las","un","una","unos","unas","a","que",
                                 "ante","bajo","cabe","con","contra","de","del","durante",
-                                "en","entre","mediante","para","segun",
+                                "en","entre","mediante","para","segun","por",
                                 "sin","so","sobre","tras","versus","y","o","e","u"];
 
     let palabras: Vec<&str> = limpia
@@ -580,6 +579,18 @@ fn validar_cadena(cadena: &str) -> ValidacionCadena {
         .collect();
 
     limpia = palabras.join("_");
+
+    let empieza_con_numero = limpia.chars().next().is_some_and(|c| c.is_ascii_digit());
+
+    if empieza_con_numero {
+        limpia = "b".to_string() + &limpia;
+    }
+
+    if limpia == "id" || limpia == "ID" {
+        limpia = "identificador".to_string();
+    }
+
+    limpia = limpia.replace("_1", "_01");
 
     let cond = limpia != cadena;
 

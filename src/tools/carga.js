@@ -73,6 +73,18 @@ appWindow.onDragDropEvent(async (event) => {
     try {
         const reporte = await invoke("leer_csv", { ruta: rutaAbsoluta });
 
+        if (reporte.encoding_detectado == "UTF-8") {
+          utils.showToast("El encoding del archivo no era UTF-8, se transformó", "warning");
+        }
+
+        if (reporte.columnas.some(ele => ele == "")) {
+          utils.showToast("Hay columnas sin nombre", "warning");
+        }
+
+        if (reporte.columnas.some(ele => ele.includes("duplicated"))) {
+          utils.showToast("Hay columnas duplicadas", "warning");
+        }
+
         utils.hideSpinner();
         utils.setStatus(`Listo: ${utils.formato(reporte.total_filas)} filas; ${utils.formato(reporte.columnas.length)} columnas.`);
 
