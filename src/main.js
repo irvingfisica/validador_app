@@ -1,4 +1,5 @@
 import { save } from '@tauri-apps/plugin-dialog';
+import { getCurrentWindow } from '@tauri-apps/api/window';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import * as d3 from 'd3';
@@ -14,6 +15,19 @@ window.appState = {
   file: null,
 };
 window.otherGrid = null;
+window.dropUnlisten = null;
+window.procesando = false;
+
+const appWindow = getCurrentWindow();
+
+appWindow.onDragDropEvent(async (event) => {
+
+    if (!document.querySelector("#dropZone")) {
+        return;
+    }
+
+    await carga.procesarDrop(event);
+})
 
 d3.select("#cargarTool").on("click", carga.intface);
 d3.select("#validacionTool").on("click", columns.intface);

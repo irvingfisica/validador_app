@@ -1,5 +1,3 @@
-
-import { getCurrentWindow } from '@tauri-apps/api/window';
 const { invoke } = window.__TAURI__.core;
 
 import * as d3 from 'd3';
@@ -39,41 +37,80 @@ export function intface() {
     .attr("id", "gridBlock")
     .attr("class", "col-md-12 bloque mt-5");
 
-const appWindow = getCurrentWindow();
+  if (window.appState.grid) {
+    d3.select("#dropZone p").html(
+      `Archivo actual: <strong>${window.appState.file}</strong>`,
+    );
 
-appWindow.onDragDropEvent(async (event) => {
-  if (event.payload.type === 'hover') {
-    d3.select("#dropZone").classed("dragover", true);
-  } else if (event.payload.type === 'drop') {
-    d3.select("#dropZone").classed("dragover", false);
+    if (window.appState.caracteres_corruptos.length > 0) {
+            const enczone = d3.select("#errorZone");
+            enczone.html("");
 
-    const enczone = d3.select("#errorZone");
-    enczone.html("");
-    
-    const rutaAbsoluta = event.payload.paths[0];
-    window.appState.file = rutaAbsoluta;
-
-    if (!rutaAbsoluta.toLowerCase().endsWith('.csv')) {
-      utils.showToast("El archivo debe tener formato CSV.", "danger");
-      return;
-    };
-
-    if (window.appState.grid) {
-        try {
-            window.appState.grid.destroy();
-        } catch (e) {
-          console.warn("Error al intentar destruir el grid anterior:", e);
+            enczone.append("strong").html("Se detectaron caracteres extraños (es necesario revisar el archivo): ");
+            enczone.append("span").attr("class","redc")
+                .html(window.appState.caracteres_corruptos.reduce((a,b) => a + b.caracter + ", ", " "));
         }
-        window.appState.grid = null;
+
+    d3.select("#validacionTool").property("disabled", false);
+    d3.select("#incidenciasTool").property("disabled", false);
+    d3.select("#categosTool").property("disabled", false);
+
+    grid.mostrarGrid("#gridBlock");
+  } 
+}
+
+export async function procesarDrop(event) {
+
+    const dropZone = d3.select("#dropZone");
+
+    if (dropZone.empty()) {
+        return;
     }
 
-    utils.setStatus("Analizando codificación e indizando datos...");
-    utils.showSpinner();
+    if (event.payload.type === 'hover') {
+      dropZone.classed("dragover", true);
+    } else if (event.payload.type === 'drop') {
+      dropZone.classed("dragover", false);
 
-    try {
+    if (window.procesando) {
+      utils.showToast("Ya se está procesando un archivo.","danger");
+      return;
+    }
+
+  window.procesando = true;
+
+  try {
+
+        dropZone
+          .style("pointer-events", "none")
+          .classed("disabled", true);
+
+          const enczone = d3.select("#errorZone");
+          enczone.html("");
+          
+          const rutaAbsoluta = event.payload.paths[0];
+          window.appState.file = rutaAbsoluta;
+
+          if (!rutaAbsoluta.toLowerCase().endsWith('.csv')) {
+            utils.showToast("El archivo debe tener formato CSV.", "danger");
+            return;
+          };
+
+          if (window.appState.grid) {
+              try {
+                  window.appState.grid.destroy();
+              } catch (e) {
+                console.warn("Error al intentar destruir el grid anterior:", e);
+              }
+              window.appState.grid = null;
+          }
+
+          utils.setStatus("Analizando codificación e indizando datos...");
+          utils.showSpinner();
+
         const reporte = await invoke("leer_csv", { ruta: rutaAbsoluta });
 
-        if (reporte.encoding_detectado == "UTF-8") {
+        if (reporte.encoding_detectado != "UTF-8") {
           utils.showToast("El encoding del archivo no era UTF-8, se transformó", "warning");
         }
 
@@ -82,7 +119,7 @@ appWindow.onDragDropEvent(async (event) => {
         }
 
         if (reporte.columnas.some(ele => ele.includes("duplicated"))) {
-          utils.showToast("Hay columnas duplicadas", "warning");
+          utils.showToast("Hay columnas con nombres duplicados", "warning");
         }
 
         utils.hideSpinner();
@@ -115,31 +152,18 @@ appWindow.onDragDropEvent(async (event) => {
     } catch (error) {
         utils.hideSpinner();
         utils.showToast(`No se pudo procesar el archivo. Motivo: ${error}`,"danger");
+    } finally {
+
+      dropZone
+      .style("pointer-events", null)
+      .classed("disabled", false);
+
+      window.procesando = false;
+      utils.hideSpinner();
     }
 
   } else {
-    d3.select("#dropZone").classed("dragover", false);
+    dropZone.classed("dragover", false);
   }
-});
 
-  if (window.appState.grid) {
-    d3.select("#dropZone p").html(
-      `Archivo actual: <strong>${window.appState.file}</strong>`,
-    );
-
-    if (window.appState.caracteres_corruptos.length > 0) {
-            const enczone = d3.select("#errorZone");
-            enczone.html("");
-
-            enczone.append("strong").html("Se detectaron caracteres extraños (es necesario revisar el archivo): ");
-            enczone.append("span").attr("class","redc")
-                .html(window.appState.caracteres_corruptos.reduce((a,b) => a + b.caracter + ", ", " "));
-        }
-
-    d3.select("#validacionTool").property("disabled", false);
-    d3.select("#incidenciasTool").property("disabled", false);
-    d3.select("#categosTool").property("disabled", false);
-
-    grid.mostrarGrid("#gridBlock");
-  } 
 }

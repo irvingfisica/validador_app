@@ -46,8 +46,8 @@ async function herramienta_columnas(selector) {
     cols.append("h2").html("Editor de valores");
 
     const mtool = cols.append("div").attr("class","row");
-    const tdiv = mtool.append("div").attr("class","col-md-4");
-    const ediv = mtool.append("div").attr("class","col-md-8");
+    const tdiv = mtool.append("div").attr("class","col-md-6");
+    const ediv = mtool.append("div").attr("class","col-md-6");
 
     ediv.append("p").html('Columna seleccionada: <span id="colactiva"></span>. Edita los valores incorrectos');
     ediv.append("div").attr("id","otherGrid")
