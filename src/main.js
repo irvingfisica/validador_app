@@ -7,6 +7,7 @@ import * as d3 from 'd3';
 import * as carga from "./tools/carga.js";
 import * as columns from "./tools/columns.js";
 import * as categos from "./tools/categos.js";
+import * as subir from "./tools/subir.js";
 
 const { invoke } = window.__TAURI__.core;
 
@@ -32,6 +33,7 @@ appWindow.onDragDropEvent(async (event) => {
 d3.select("#cargarTool").on("click", carga.intface);
 d3.select("#validacionTool").on("click", columns.intface);
 d3.select("#categosTool").on("click", categos.intface);
+d3.select("#subirTool").on("click", subir.intface);
 
 carga.intface();
 

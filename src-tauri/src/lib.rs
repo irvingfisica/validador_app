@@ -2,7 +2,7 @@ use chardetng::{EncodingDetector,Iso2022JpDetection, Utf8Detection};
 use polars::prelude::*;
 use std::collections::{BTreeMap, BTreeSet, HashSet, HashMap};
 use std::io::{Read,BufReader,Cursor};
-use std::path::Path;
+use std::path::{Path,PathBuf};
 use std::fs::File;
 use std::io::Write;
 use serde::{Serialize,Deserialize};
@@ -14,6 +14,70 @@ use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 use std::sync::OnceLock;
 use sha2::{Digest, Sha256};
+use reqwest::Client;
+use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, ACCEPT_LANGUAGE, CACHE_CONTROL, PRAGMA, USER_AGENT};
+use futures::stream::{self, StreamExt};
+use std::time::Duration;
+
+fn cliente_ckan() -> Result<Client, String> {
+    let mut headers = HeaderMap::new();
+
+    headers.insert(USER_AGENT, HeaderValue::from_static(
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) \
+             AppleWebKit/537.36 (KHTML, like Gecko) \
+             Chrome/122.0.0.0 Safari/537.36"));
+
+    headers.insert(
+        ACCEPT,
+        HeaderValue::from_static(
+            "application/json, text/plain, */*"
+        ),
+    );
+
+    headers.insert(
+        ACCEPT_LANGUAGE,
+        HeaderValue::from_static(
+            "es-MX,es;q=0.9,en;q=0.8"
+        ),
+    );
+
+    headers.insert(
+        CACHE_CONTROL,
+        HeaderValue::from_static("no-cache"),
+    );
+
+    headers.insert(
+        PRAGMA,
+        HeaderValue::from_static("no-cache"),
+    );
+
+    Client::builder().default_headers(headers)
+        .gzip(true)
+        .brotli(true)
+        .deflate(true)
+        .tcp_keepalive(Duration::from_secs(30))
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(15))
+        .build().map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Institucion {
+    pub id: String,
+    pub name: String,
+    pub display_name: String
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CacheInstituciones {
+    pub instituciones: Vec<Institucion>
+}
+
+#[derive(Deserialize)]
+struct CkanResponse<T> {
+    success: bool,
+    result: T
+}
 
 pub struct ContenedorDatos {
     pub dataframe: Mutex<Option<DataFrame>>,
@@ -119,20 +183,7 @@ async fn exportar_csv(
         .as_ref()
         .ok_or("No hay dataframe cargado")?;
 
-    let mut archivo = File::create(&ruta)
-        .map_err(|e| format!("No se pudo crear archivo: {}", e))?;
-
-    archivo
-        .write_all(b"\xEF\xBB\xBF")
-        .map_err(|e| e.to_string())?;
-
-
-    CsvWriter::new(&mut archivo)
-        .include_header(true)
-        .finish(&mut df.clone())
-        .map_err(|e| format!("Error al exportar CSV: {}", e))?;
-
-    Ok(())
+    escribir_csv(df, &ruta).map_err(|e| format!("Error al escribir CSV: {}", e))
 }
 
 #[tauri::command]
@@ -450,6 +501,56 @@ async fn cambiar_valores(columna: String,cambios: HashMap<String,String>,state: 
 
 }
 
+#[tauri::command]
+async fn obtener_instituciones() -> Result<Vec<Institucion>, String> {
+    let cliente = cliente_ckan()?;
+    let lista_actual = obtener_lista_instituciones(&cliente).await?;
+
+    let mut cache = cargar_cache();
+
+    let mapa: HashMap<String, Institucion> = cache.instituciones.iter().cloned().map(|x| (x.name.clone(), x)).collect();
+
+    let faltantes: Vec<String> = lista_actual.iter().filter(|nombre| !mapa.contains_key(*nombre)).cloned().collect();
+
+    let nuevas: Vec<Institucion> = stream::iter(faltantes).map(|nombre| {
+        let cliente = cliente.clone();
+        async move {
+        obtener_detalle_institucion(&nombre, &cliente).await}
+    }).buffer_unordered(10).filter_map(|x| async move {
+        match x {
+            Ok(i) => Some(i),
+            Err(e) => {
+                eprintln!("Error: {}", e);
+                None
+            }
+        }
+    }).collect().await;
+
+    for institucion  in nuevas {
+            cache.instituciones.push(institucion);
+    }
+
+    cache.instituciones.retain(|i| {lista_actual.contains(&i.name)});
+
+    guardar_cache(&cache)?;
+
+    let mapa_final: HashMap<String, Institucion> = cache.instituciones.iter().cloned().map(|x| (x.name.clone(), x)).collect();
+
+    let mut resultado = Vec::new();
+
+    for nombre in lista_actual {
+        if let Some(i) = mapa_final.get(&nombre) {
+            resultado.push(i.clone());
+        }
+    }
+
+    resultado.sort_by(|a,b| {
+        a.display_name.cmp(&b.display_name)
+    });
+
+    Ok(resultado)
+}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -457,7 +558,17 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(ContenedorDatos { dataframe: Mutex::new(None),ruta_original: Mutex::new(None),ruta_sugerida: Mutex::new(None)})
-        .invoke_handler(tauri::generate_handler![leer_csv, obtener_bloque, validar_columnas, transformar, col_categos, col_values, cambiar_valores, exportar_csv, ruta_sugerida])
+        .invoke_handler(tauri::generate_handler![
+            leer_csv, 
+            obtener_bloque, 
+            validar_columnas, 
+            transformar, 
+            col_categos, 
+            col_values, 
+            cambiar_valores, 
+            exportar_csv, 
+            ruta_sugerida, 
+            obtener_instituciones])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -798,3 +909,87 @@ fn nombre_archivo_sugerido(ruta: &str) -> String {
 
     format!("{}.csv", limpio)
 }
+
+fn escribir_csv(df: &DataFrame, ruta: &str) -> Result<(), String> {
+
+    let mut archivo = File::create(&ruta)
+        .map_err(|e| format!("No se pudo crear archivo: {}", e))?;
+
+    archivo
+        .write_all(b"\xEF\xBB\xBF")
+        .map_err(|e| e.to_string())?;
+
+
+    CsvWriter::new(&mut archivo)
+        .include_header(true)
+        .finish(&mut df.clone())
+        .map_err(|e| format!("Error al exportar CSV: {}", e))?;
+
+    Ok(())
+}
+
+fn ruta_cache() -> Result<PathBuf, String> {
+    let mut path = dirs::cache_dir().ok_or("No se pudo localizar el directorio de cache")?;
+
+    path.push("validador_app");
+    std::fs::create_dir_all(&path).map_err(|e| e.to_string())?;
+
+    path.push("instituciones.json");
+
+    Ok(path)
+}
+
+fn cargar_cache() -> CacheInstituciones {
+    let ruta = match ruta_cache() {
+        Ok(x) => x,
+        Err(_) => return CacheInstituciones::default()
+    };
+
+    if !ruta.exists() {
+        return CacheInstituciones::default();
+    }
+
+    let contenido = match std::fs::read_to_string(ruta) {
+        Ok(x) => x,
+        Err(_) => return CacheInstituciones::default(),
+    };
+
+    serde_json::from_str(&contenido).unwrap_or_default()
+}
+
+fn guardar_cache(cache: &CacheInstituciones) -> Result<(), String> {
+    let ruta = ruta_cache()?;
+
+    let json = serde_json::to_string_pretty(cache).map_err(|e| e.to_string())?;
+
+    std::fs::write(ruta, json).map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+async fn obtener_lista_instituciones(cliente: &Client) -> Result<Vec<String>, String> {
+
+    let respuesta= cliente.get("https://www.datos.gob.mx/api/3/action/organization_list").send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?;
+
+    let datos: CkanResponse<Vec<String>> = respuesta.json().await.map_err(|e| e.to_string())?;
+
+    if !datos.success {return Err("CKAN regresó success=false".to_string());}
+
+    Ok(datos.result)
+}
+
+async fn obtener_detalle_institucion(nombre: &str, cliente: &Client) -> Result<Institucion, String> {
+
+    let respuesta = cliente
+    .get(
+        "https://www.datos.gob.mx/api/3/action/organization_show"
+    )
+    .query(&[("id", nombre)]).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?;
+
+    let datos: CkanResponse<Institucion> =  respuesta.json().await.map_err(|e| e.to_string())?;
+
+    if !datos.success {return Err("CKAN regresó success=false".to_string());}
+
+    Ok(datos.result)
+}
+

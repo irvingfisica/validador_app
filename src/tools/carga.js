@@ -149,6 +149,7 @@ export async function procesarDrop(event) {
         d3.select("#incidenciasTool").property("disabled", false);
         d3.select("#categosTool").property("disabled", false);
         d3.select("#descargaTool").property("disabled", false);
+        d3.select("#subirTool").property("disabled", false);
     } catch (error) {
         utils.hideSpinner();
         utils.showToast(`No se pudo procesar el archivo. Motivo: ${error}`,"danger");
