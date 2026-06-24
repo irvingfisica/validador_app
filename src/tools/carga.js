@@ -5,6 +5,7 @@ import * as utils from "./utils.js";
 import * as grid from "./grid.js";
 
 export function intface() {
+  utils.limpiarEvento();
   utils.enableTB("#cargarTool");
 
   const contenedor = d3.select("#mesaTrabajo");

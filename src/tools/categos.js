@@ -8,6 +8,7 @@ import * as grid from "./grid.js";
 
 
 export async function intface() {
+    utils.limpiarEvento();
     utils.enableTB("#categosTool");
 
     const contenedor = d3.select("#mesaTrabajo");

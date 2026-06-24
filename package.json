@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@popperjs/core": "^2.11.8",
+    "@tarekraafat/autocomplete.js": "^10.2.10",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "ag-grid-community": "^35.3.0",

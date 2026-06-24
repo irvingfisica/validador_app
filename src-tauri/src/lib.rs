@@ -1,25 +1,31 @@
 use chardetng::{EncodingDetector,Iso2022JpDetection, Utf8Detection};
 use polars::prelude::*;
-use std::collections::{BTreeMap, BTreeSet, HashSet, HashMap};
+use tokio::io::AsyncWriteExt;
+use tokio::sync::Notify;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::io::{Read,BufReader,Cursor};
 use std::path::{Path,PathBuf};
 use std::fs::File;
 use std::io::Write;
+use std::env;
 use serde::{Serialize,Deserialize};
 use std::sync::Mutex;
 use tauri::State;
+use tauri::Manager;
 use serde_json::Value;
 use regex::Regex;
 use std::sync::LazyLock;
 use unicode_normalization::UnicodeNormalization;
 use std::sync::OnceLock;
 use sha2::{Digest, Sha256};
-use reqwest::Client;
 use reqwest::header::{HeaderMap, HeaderValue, ACCEPT, ACCEPT_LANGUAGE, CACHE_CONTROL, PRAGMA, USER_AGENT};
 use futures::stream::{self, StreamExt};
 use std::time::Duration;
+use russh_sftp::protocol::OpenFlags;
+use russh_sftp::client::SftpSession;
+use tauri::Emitter;
 
-fn cliente_ckan() -> Result<Client, String> {
+fn cliente_ckan() -> Result<reqwest::Client, String> {
     let mut headers = HeaderMap::new();
 
     headers.insert(USER_AGENT, HeaderValue::from_static(
@@ -51,14 +57,29 @@ fn cliente_ckan() -> Result<Client, String> {
         HeaderValue::from_static("no-cache"),
     );
 
-    Client::builder().default_headers(headers)
+    reqwest::Client::builder().default_headers(headers)
         .gzip(true)
         .brotli(true)
         .deflate(true)
         .tcp_keepalive(Duration::from_secs(30))
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(15))
+        .connect_timeout(Duration::from_secs(15))
+        .timeout(Duration::from_secs(60))
         .build().map_err(|e| e.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+struct PackageSearchResponse {
+    count: usize,
+    results: Vec<Conjunto>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Conjunto {
+    pub id: String,
+    pub name: String,
+    pub title: String,
+    #[serde(default)]
+    pub institucion: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -77,6 +98,61 @@ pub struct CacheInstituciones {
 struct CkanResponse<T> {
     success: bool,
     result: T
+}
+
+#[derive(Deserialize)]
+pub struct ConexionConfig {
+    usuario: String,
+    host: String,
+    institucion: String,
+    conjunto: String,
+    archivo: String
+}
+
+pub struct RepoConexion {
+    ssh: russh::client::Handle<ClientHandler>,
+    sftp: SftpSession
+}
+
+#[derive(Clone, Serialize)]
+pub struct SubidaRepo {
+    size_original: u64,
+    size_subido: u64,
+    url: String
+}
+
+#[derive(Clone, Serialize)]
+pub enum EstadoSubida {
+    EnCola,
+    Subiendo,
+    Completado,
+    Error
+}
+
+#[derive(Clone, Serialize)]
+pub struct TrabajoSubida {
+    pub id: u64,
+
+    pub usuario: String,
+    host: String,
+
+    pub institucion: String,
+    pub conjunto: String,
+
+    pub archivo_local: String,
+    pub archivo_remoto: String,
+
+    pub estado: EstadoSubida,
+
+    pub resultado: Option<SubidaRepo>,
+    pub error: Option<String>
+}
+
+pub struct ColaSubidas {
+    pub pendientes: Mutex<VecDeque<TrabajoSubida>>,
+    pub en_proceso: Mutex<Option<TrabajoSubida>>,
+    pub historico: Mutex<Vec<TrabajoSubida>>,
+    pub notify: Notify
 }
 
 pub struct ContenedorDatos {
@@ -502,6 +578,14 @@ async fn cambiar_valores(columna: String,cambios: HashMap<String,String>,state: 
 }
 
 #[tauri::command]
+async fn obtener_conjuntos(institucion: String) -> Result<Vec<Conjunto>, String> {
+    let cliente = cliente_ckan()?;
+    let conjuntos = obtener_conjuntos_institucion(&institucion, &cliente).await?;
+
+    Ok(conjuntos)
+}
+
+#[tauri::command]
 async fn obtener_instituciones() -> Result<Vec<Institucion>, String> {
     let cliente = cliente_ckan()?;
     let lista_actual = obtener_lista_instituciones(&cliente).await?;
@@ -551,13 +635,147 @@ async fn obtener_instituciones() -> Result<Vec<Institucion>, String> {
     Ok(resultado)
 }
 
+#[tauri::command]
+async fn subir_repo(config: ConexionConfig, state: State<'_, ContenedorDatos>) -> Result<SubidaRepo, String> {
+    let df = {
+        let guardado = state
+            .dataframe
+            .lock()
+            .map_err(|_| "Error al bloquear el estado")?;
+
+        guardado
+            .as_ref()
+            .ok_or("No hay dataframe")?
+            .clone()
+    };
+
+    let ruta_sugerida = config.archivo;
+
+    let ruta_temporal = exportar_temporal(df, &ruta_sugerida).map_err(|e|format!("No se pudo guardar el archivo temporal {e}"))?;
+
+    let repo = conectar_repo(&config.host, &config.usuario).await.map_err(|e|format!("No se pudo conectar al repo {e}"))?;
+    let folder_remoto = crear_ruta_remota(&repo, &config.institucion, &config.conjunto).await?;
+    let ruta_remota = folder_remoto + &ruta_sugerida;
+
+    let subido = subir_archivo_repo(&repo, &ruta_temporal, &ruta_remota).await?;
+
+    destruir(repo).await;
+
+    Ok(subido)
+}
+
+#[tauri::command]
+async fn agregar_subida(
+    config: ConexionConfig, state: State<'_, ContenedorDatos>, cola: State<'_, Arc<ColaSubidas>>) -> Result<u64,String> {
+
+    let df = {
+    let guardado = state
+        .dataframe
+        .lock()
+        .map_err(|_| "Error al bloquear el estado")?;
+
+    guardado
+        .as_ref()
+        .ok_or("No hay dataframe")?
+        .clone()
+    };
+
+    let ruta_sugerida = config.archivo;
+
+    let ruta_temporal = exportar_temporal(df, &ruta_sugerida).map_err(|e|format!("No se pudo guardar el archivo temporal {e}"))?;
+
+    let id =
+        std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_millis() as u64;
+
+    let trabajo = TrabajoSubida {
+        id,
+        usuario: config.usuario.clone(),
+        host: config.host.clone(),
+        institucion: config.institucion.clone(),
+        conjunto: config.conjunto.clone(),
+        archivo_local: ruta_temporal.to_string_lossy().to_string(),
+        archivo_remoto: ruta_sugerida,
+        estado: EstadoSubida::EnCola,
+        resultado: None,
+        error:None
+    };
+
+    cola.pendientes.lock().unwrap().push_back(trabajo);
+
+    cola.notify.notify_one();
+
+    Ok(id)
+}
+
+#[tauri::command]
+fn obtener_cola(cola: State<'_, Arc<ColaSubidas>>) -> Vec<TrabajoSubida> {
+    let mut resultado = Vec::new();
+
+    resultado.extend(cola.historico.lock().unwrap().clone());
+
+    if let Some(actual) = cola.en_proceso.lock().unwrap().clone()
+    {
+        resultado.push(actual);
+    }
+
+    resultado.extend(cola.pendientes.lock().unwrap().iter().cloned());
+
+    resultado
+}
+
+#[tauri::command]
+async fn reintentar_subida(id: u64, cola:State<'_, Arc<ColaSubidas>>) -> Result<(), String> {
+
+    let mut trabajo = {
+        let mut historico = cola.historico.lock().map_err(|_|"Error al bloquear historico")?;
+
+        let pos = historico
+            .iter()
+            .position(|t| t.id == id)
+            .ok_or("Trabajo no encontrado")?;
+
+        historico.remove(pos)
+    };
+
+    if !matches!(trabajo.estado, EstadoSubida::Error) {
+        return Err("El trasbajo no tiene error".into());
+    }
+
+    if !Path::new(&trabajo.archivo_local).exists() {
+        return Err("El archivo temporal ya no existe".into());
+    }
+
+    trabajo.estado = EstadoSubida::EnCola;
+    trabajo.error = None;
+
+    cola.pendientes.lock().map_err(|_|"Error al bloquear cola")?.push_back(trabajo);
+
+    cola.notify.notify_one();
+
+    Ok(())
+}
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(ContenedorDatos { dataframe: Mutex::new(None),ruta_original: Mutex::new(None),ruta_sugerida: Mutex::new(None)})
+        .manage(ContenedorDatos { 
+            dataframe: Mutex::new(None),
+            ruta_original: Mutex::new(None),
+            ruta_sugerida: Mutex::new(None),
+        })
+        .manage(Arc::new(ColaSubidas { 
+                pendientes: Mutex::new(VecDeque::new()),
+                en_proceso: Mutex::new(None),
+                historico: Mutex::new(Vec::new()),
+                notify: Notify::new()
+            }))
         .invoke_handler(tauri::generate_handler![
             leer_csv, 
             obtener_bloque, 
@@ -568,7 +786,28 @@ pub fn run() {
             cambiar_valores, 
             exportar_csv, 
             ruta_sugerida, 
-            obtener_instituciones])
+            obtener_instituciones,
+            obtener_conjuntos,
+            subir_repo,
+            agregar_subida,
+            obtener_cola,
+            reintentar_subida
+            ])
+            .setup(|app| {
+                let cola = app.state::<Arc<ColaSubidas>>().inner().clone();
+
+                if let Err(e) = limpiar_temporales() {
+                    eprintln!("Error limpiando temporales: {e}");
+                }
+
+                let app_handle = app.handle().clone();
+
+                tauri::async_runtime::spawn(async move {
+                    worker_subidas(cola, app_handle).await;
+                });
+
+                Ok(())
+            })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -967,7 +1206,7 @@ fn guardar_cache(cache: &CacheInstituciones) -> Result<(), String> {
     Ok(())
 }
 
-async fn obtener_lista_instituciones(cliente: &Client) -> Result<Vec<String>, String> {
+async fn obtener_lista_instituciones(cliente: &reqwest::Client) -> Result<Vec<String>, String> {
 
     let respuesta= cliente.get("https://www.datos.gob.mx/api/3/action/organization_list").send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?;
 
@@ -978,7 +1217,7 @@ async fn obtener_lista_instituciones(cliente: &Client) -> Result<Vec<String>, St
     Ok(datos.result)
 }
 
-async fn obtener_detalle_institucion(nombre: &str, cliente: &Client) -> Result<Institucion, String> {
+async fn obtener_detalle_institucion(nombre: &str, cliente: &reqwest::Client) -> Result<Institucion, String> {
 
     let respuesta = cliente
     .get(
@@ -993,3 +1232,287 @@ async fn obtener_detalle_institucion(nombre: &str, cliente: &Client) -> Result<I
     Ok(datos.result)
 }
 
+async fn obtener_conjuntos_institucion(institucion: &str, cliente: &reqwest::Client) -> Result<Vec<Conjunto>, String> {
+    let respuesta = cliente
+    .get(
+        "https://www.datos.gob.mx/api/3/action/package_search"
+    )
+    .query(&[
+        ("fq",format!("organization:{institucion}")),("rows","1000".to_string())
+    ]).send().await.map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?;
+
+    let datos: CkanResponse<PackageSearchResponse> = respuesta.json().await.map_err(|e| e.to_string())?;
+
+    if !datos.success {return Err("CKAN regresó success=false".to_string());}
+
+    let mut conjuntos = datos.result.results;
+
+    for conjunto in &mut conjuntos {
+        conjunto.institucion = institucion.to_string();
+    }
+
+    Ok(conjuntos)
+}
+
+struct ClientHandler;
+
+impl russh::client::Handler for ClientHandler {
+    type Error = russh::Error;
+
+    async fn check_server_key(
+        &mut self,
+        server_public_key: &russh::keys::ssh_key::PublicKey,
+    ) -> Result<bool, Self::Error>
+    {
+        Ok(true)
+    }
+}
+
+async fn destruir(repo: RepoConexion) {
+
+    if let Err(e) = repo.sftp.close().await {
+        eprintln!("Error cerrando SFTP: {e}");
+    }
+
+    if let Err(e) = repo.ssh
+        .disconnect(
+            russh::Disconnect::ByApplication,
+            "Operación completada",
+            "es-MX",
+        )
+        .await
+    {
+        eprintln!("Error cerrando SSH: {e}");
+    }
+}
+
+async fn subir_archivo_repo(repo: &RepoConexion, ruta_local: &PathBuf, ruta_remota: &str) -> Result<SubidaRepo, String> {
+    
+    let metadata = std::fs::metadata(&ruta_local)
+    .map_err(|e| e.to_string())?;
+    
+    let mut local = tokio::fs::File::open(ruta_local).await.map_err(|e| e.to_string())?;
+
+    let mut remoto = repo.sftp
+    .open_with_flags(ruta_remota,
+        OpenFlags::CREATE
+            | OpenFlags::TRUNCATE
+            | OpenFlags::WRITE,
+    )
+    .await
+    .map_err(|e| format!("Error creando archivo remoto: {:?}", e))?;
+
+    let bytes = tokio::io::copy(
+    &mut local,
+    &mut remoto,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+
+    drop(local);
+    let _ = remoto.shutdown().await;
+
+    let url = ruta_publica(ruta_remota);
+
+    let subido = SubidaRepo {
+        size_original: metadata.len(),
+        size_subido: bytes,
+        url,
+    };
+
+    Ok(subido)
+}
+
+fn ruta_publica(ruta_remota: &str) -> String {
+    ruta_remota.replace("/mnt/nfs/datasets/","https://repodatos.atdt.gob.mx/")
+}
+
+async fn crear_ruta_remota(repo: &RepoConexion, institucion: &str, conjunto: &str) -> Result<String,String> {
+
+    let base = "/mnt/nfs/datasets/api_update/".to_string();
+    let inst_folder = base.clone() + institucion;
+    let conj_folder = inst_folder.clone() + "/" + conjunto;
+
+    crear_ruta(repo, &inst_folder).await?;
+    crear_ruta(repo, &conj_folder).await?;
+
+    let ruta_remota = conj_folder + "/";
+
+    Ok(ruta_remota)
+}
+
+async fn crear_ruta(repo: &RepoConexion, ruta: &str) -> Result<(), String> {
+    let cond = repo.sftp.try_exists(ruta).await.map_err(|e|format!("No se pudo corroborar si existe el directorio {e}"))?;
+    if !cond {
+        repo.sftp.create_dir(ruta).await.map_err(|e|format!("No se pudo crear el directorio{e}"))?;
+    };
+
+    Ok(())
+}
+
+fn exportar_temporal(df: DataFrame, ruta: &str) -> Result<PathBuf, String> {
+    let ruta_temporal = ruta_csv_temporal(ruta)?;
+    escribir_csv(&df, ruta_temporal.to_str().unwrap())?;
+    Ok(ruta_temporal)
+}
+
+async fn conectar_repo(host: &str, usuario: &str) -> Result<RepoConexion, String> {
+    let config = Arc::new(russh::client::Config::default());
+    let mut ssh = russh::client::connect(config, host, ClientHandler)
+        .await
+        .map_err(|e| format!("Error de conexión SSH: {:?}", e))?;
+
+    let home = dirs::home_dir().ok_or("No hay HOME")?;
+    let llave_path = home.join(".ssh").join("id_ed25519");
+
+    if !llave_path.exists() {
+        return Err("No se encontró la llave SSH válida".to_string());
+    };
+
+    let key_pair = russh::keys::load_secret_key(llave_path, None)
+        .map_err(|e| format!("Error al leer/parsear la llave privada: {:?}", e))?;
+
+    let key_with_alg = russh::keys::key::PrivateKeyWithHashAlg::new(Arc::new(key_pair), None);
+
+    let autenticado = ssh
+        .authenticate_publickey(usuario, key_with_alg.into())
+        .await
+        .map_err(|e| format!("Error en el handshake de autenticación: {:?}", e))?;
+
+    if !autenticado.success() {
+        return Err("La autenticación por llave pública fue rechazada por el servidor".to_string());
+    }
+
+    let canal_sftp = ssh.channel_open_session().await.map_err(|e| format!("No se pudo abrir la sesión: {:?}", e))?;
+
+    canal_sftp.request_subsystem(true, "sftp").await
+    .map_err(|e| format!("Error iniciando subsistema SFTP: {:?}", e))?;
+
+    let sftp = SftpSession::new(
+        canal_sftp.into_stream(),
+    )
+    .await
+    .map_err(|e| format!("Error creando sesión SFTP: {:?}", e))?;
+
+    let conexion = RepoConexion {ssh,sftp};
+
+    Ok(conexion)
+}
+
+fn ruta_csv_temporal(nombre: &str) -> Result<PathBuf, String> {
+    let mut ruta = env::temp_dir();
+    ruta.push("validador_app");
+
+    std::fs::create_dir_all(&ruta)
+        .map_err(|e| e.to_string())?;
+
+    ruta.push(nombre);
+    Ok(ruta)
+}
+
+fn limpiar_temporales() -> Result<(), String> {
+    let mut ruta = env::temp_dir();
+    ruta.push("validador_app");
+
+    if ruta.exists() {
+        std::fs::remove_dir_all(&ruta)
+            .map_err(|e| e.to_string())?;
+    }
+
+    std::fs::create_dir_all(&ruta)
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
+
+pub async fn worker_subidas(cola: Arc<ColaSubidas>, app: tauri::AppHandle,) {
+    loop {
+
+
+        let trabajo = {
+            let mut pendientes = cola.pendientes.lock().unwrap();
+            pendientes.pop_front()
+        };
+
+        match trabajo {
+            Some(mut job) => {
+                job.estado = EstadoSubida::Subiendo;
+
+                {
+                    let mut actual = cola.en_proceso.lock().unwrap();
+                    *actual = Some(job.clone());
+                }
+
+                let resultado = procesar_subida(&mut job).await;
+
+                match resultado {
+                    Ok(_) => {
+                        job.estado = EstadoSubida::Completado;
+                        let _ = std::fs::remove_file(&job.archivo_local);
+
+                        let _ = app.emit("cola-actualizada", &job);
+                    }
+
+                    Err(e) => {
+                        job.estado = EstadoSubida::Error;
+                        job.error = Some(e);
+
+                        let _ = app.emit("cola-actualizada", &job);
+                    }
+                }
+
+                {
+                    let mut actual = cola.en_proceso.lock().unwrap();
+                    *actual = None;
+                }
+
+                {
+                    let mut historico = cola.historico.lock().unwrap();
+                    historico.push(job);
+                }
+            }
+
+            None => {
+                cola.notify.notified().await;
+            }
+        }
+
+    }
+}
+
+async fn procesar_subida(job: &mut TrabajoSubida) -> Result<(), String> {
+
+    let repo = conectar_repo(&job.host, &job.usuario).await
+    .map_err(|e|format!("No se pudo conectar al repo {e}"))?;
+
+    let resultado = async {
+
+        let ruta_remota =
+            crear_ruta_remota(
+                &repo,
+                &job.institucion,
+                &job.conjunto,
+            )
+            .await?;
+
+        let destino =
+            ruta_remota
+            + &job.archivo_remoto;
+
+        let subida = subir_archivo_repo(
+            &repo,
+            &PathBuf::from(&job.archivo_local),
+            &destino,
+        )
+        .await?;
+
+        job.resultado = Some(subida);
+
+        Ok::<(), String>(())
+
+    }.await;
+
+    destruir(repo).await;
+
+    resultado
+}

@@ -1,6 +1,14 @@
 import * as d3 from 'd3';
 import * as bootstrap from 'bootstrap';
 
+export function limpiarEvento() {
+  if (window.appState.colaUnlisten) {
+      window.appState.colaUnlisten();
+      window.appState.colaUnlisten = null;
+  }
+}
+
+
 export function enableTB(boton) {
   d3.selectAll(".tools").classed("active", false);
   d3.selectAll(".tools").attr("aria-pressed", false);

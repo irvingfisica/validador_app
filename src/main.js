@@ -2,6 +2,8 @@ import { save } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+import "@tarekraafat/autocomplete.js/dist/css/autoComplete.02.css";
+import autoComplete from "@tarekraafat/autocomplete.js";
 import * as d3 from 'd3';
 
 import * as carga from "./tools/carga.js";
@@ -14,10 +16,13 @@ const { invoke } = window.__TAURI__.core;
 window.appState = {
   grid: null,
   file: null,
+  server: null,
+  user: null,
 };
 window.otherGrid = null;
 window.dropUnlisten = null;
 window.procesando = false;
+window.colaUnlisten = null;
 
 const appWindow = getCurrentWindow();
 
