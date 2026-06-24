@@ -147,6 +147,7 @@ async function actualizarCola() {
 
     const cola = await invoke("obtener_cola");
     cola.reverse();
+    console.log(cola);
 
     const tabla = d3.select("#tablaCola");
 
@@ -160,7 +161,17 @@ async function actualizarCola() {
     filas.append("p").html(d => "Intitución: " + d.institucion + ", Conjunto: " + d.conjunto);
     filas.append("p").append("strong").html(d => {if(d.resultado?.url) {return d.resultado.url}});
     filas.append("p")
-    .html(d => `<strong>Estado:</strong> ${d.estado}`);
+    .html(d => {
+        let tcolor = "text-warning";
+        if (d.estado == "Completado") {
+            tcolor = "text-success"
+        }
+
+        if (d.estado == "Error") {
+            tcolor = "text-danger"
+        }
+        return `<strong>Estado: <span class="${tcolor}">${d.estado}</span></strong>`
+    });
 
     filas.each(function(d) {
         if (d.estado === "Error") {
@@ -178,13 +189,13 @@ async function actualizarCola() {
                         { id: d.id }
                     );
 
-                    actualizarCola();
-
                 } catch (e) {
                     utils.showToast(
                         `No se pudo reintentar: ${e}`,
-                        "danger"
+                        "warning"
                     );
+                } finally {
+                    await actualizarCola()
                 }
             });
         }

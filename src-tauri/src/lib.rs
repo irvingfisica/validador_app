@@ -69,7 +69,7 @@ fn cliente_ckan() -> Result<reqwest::Client, String> {
 
 #[derive(Debug, Deserialize)]
 struct PackageSearchResponse {
-    count: usize,
+    _count: usize,
     results: Vec<Conjunto>,
 }
 
@@ -218,6 +218,8 @@ impl TipoColumna {
     pub fn from_polartype(dt: &DataType, coord: bool) -> Self {
         match dt {
             DataType::Float64 => {
+                if coord {TipoColumna::Coordenada } else { TipoColumna::Numero}}
+            DataType::Int64 => {
                 if coord {TipoColumna::Coordenada } else { TipoColumna::Numero}}
             DataType::Date => TipoColumna::Fecha,
             _ => TipoColumna::Texto
@@ -741,11 +743,11 @@ async fn reintentar_subida(id: u64, cola:State<'_, Arc<ColaSubidas>>) -> Result<
     };
 
     if !matches!(trabajo.estado, EstadoSubida::Error) {
-        return Err("El trasbajo no tiene error".into());
+        return Err("El trabajo no tiene error".into());
     }
 
     if !Path::new(&trabajo.archivo_local).exists() {
-        return Err("El archivo temporal ya no existe".into());
+        return Err("El archivo temporal ya no existe. Fue eliminado de la cola.".into());
     }
 
     trabajo.estado = EstadoSubida::EnCola;
@@ -846,6 +848,42 @@ fn es_caracter_corrupto(c: char) -> bool {
     false
 }
 
+fn tiene_ceros_iniciales(col: &Column) -> bool {
+    if col.dtype() != &DataType::String {
+        return false;
+    }
+
+    let Ok(ca) = col.str() else {
+        return false;
+    };
+
+    for txt in ca.into_iter().flatten() {
+        let txt = txt.trim();
+
+        if txt.len() > 1
+            && txt.starts_with('0')
+            && txt.chars().all(|c| c.is_ascii_digit())
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn tiene_decimales(col: &Column) -> bool {
+        let Ok(ca) = col.str() else {
+        return false;
+    };
+
+    ca.into_iter().flatten().any(|txt| {
+        let txt = txt.trim();
+
+        !txt.is_empty()
+            && txt.contains('.')
+    })
+}
+
 fn castear_columna(df: DataFrame, columna: &str, tipo: TipoColumna) -> DataFrame {
 
     match tipo {
@@ -874,14 +912,27 @@ fn castear_columna(df: DataFrame, columna: &str, tipo: TipoColumna) -> DataFrame
             return df;
         },
         TipoColumna::Numero => {
-            if df.column(columna).map(|c| c.dtype() == &DataType::Date).unwrap_or(false) {
+
+            let columna_actual = match df.column(columna) {
+                Ok(c) => c,
+                Err(_) => return df,
+            };
+
+            if tiene_ceros_iniciales(columna_actual) {
                 return df;
+            }
+
+            let tipo_destino = if tiene_decimales(columna_actual) {
+                DataType::Float64
             } else {
-                let expr = col(columna).strict_cast(tipo.to_polartype());
-                match df.clone().lazy().with_column(expr).collect() {
-                    Ok(df_transformado) => return df_transformado,
-                    Err(_) => return df
-                }
+                DataType::Int64
+            };
+
+            let expr = col(columna).strict_cast(tipo_destino);
+
+            match df.clone().lazy().with_column(expr).collect() {
+                Ok(df_transformado) => return df_transformado,
+                Err(_) => return df,
             }
         },
         _ => {
@@ -1097,10 +1148,44 @@ fn limpiar_fechas(serie: &Series) -> Result<Series, PolarsError> {
     Ok(limpio.into_series())
 }
 
+fn tipo_numerico(serie: &Series) -> Result<DataType, PolarsError> {
+    let s = serie.cast(&DataType::String)?;
+    let ca = s.str()?;
+
+    for txt in ca.into_iter().flatten() {
+        let txt = txt.trim();
+
+        if txt.len() > 1
+            && txt.starts_with('0')
+            && txt.chars().all(|c| c.is_ascii_digit())
+        {
+            return Err(
+                PolarsError::ComputeError(
+                    "La columna contiene valores con ceros iniciales".into()
+                )
+            );
+        }
+    }
+
+    let tiene_decimales = ca.into_iter().flatten().any(|txt| {
+        txt.trim().contains('.')
+    });
+
+    Ok(
+        if tiene_decimales {
+            DataType::Float64
+        } else {
+            DataType::Int64
+        }
+    )
+}
+
 fn transformar_a_numerica(serie: &Series) -> Result<Series, PolarsError> {
     let limpia = limpiar_numericas(serie)?;
 
-    limpia.strict_cast(&DataType::Float64)
+    let tipo = tipo_numerico(&limpia)?;
+
+    limpia.strict_cast(&tipo)
 }
 
 fn transformar_a_coordenada(serie: &Series) -> Result<Series, PolarsError> {
@@ -1261,7 +1346,7 @@ impl russh::client::Handler for ClientHandler {
 
     async fn check_server_key(
         &mut self,
-        server_public_key: &russh::keys::ssh_key::PublicKey,
+        _server_public_key: &russh::keys::ssh_key::PublicKey,
     ) -> Result<bool, Self::Error>
     {
         Ok(true)
