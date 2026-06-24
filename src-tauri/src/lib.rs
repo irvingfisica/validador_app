@@ -888,6 +888,19 @@ fn castear_columna(df: DataFrame, columna: &str, tipo: TipoColumna) -> DataFrame
 
     match tipo {
         TipoColumna::Fecha => {
+
+            let columna_original = match df.column(columna) {
+                Ok(c) => c,
+                Err(_) => return df, 
+            };
+
+            let nulos_originales = columna_original.null_count();
+            let total = df.height();
+
+            if nulos_originales == total {
+                return df;
+            }
+
             for formato in ["%Y-%m-%d", "%d-%m-%Y","%Y/%m/%d", "%d/%m/%Y"] {
                 let expr = col(columna).str().to_date(StrptimeOptions {
                 format: Some(formato.into()),
@@ -897,10 +910,11 @@ fn castear_columna(df: DataFrame, columna: &str, tipo: TipoColumna) -> DataFrame
             });
                 match df.clone().lazy().with_column(expr).collect() {
                     Ok(df_transformado) => {
-                        let nulos = df_transformado.column(columna)
-                            .map(|c| c.null_count()).unwrap_or(0);
-                        let total = df_transformado.height();
-                        if nulos < total {
+                        let nulos_nuevos = df_transformado.column(columna)
+                            .map(|c| c.null_count())
+                            .unwrap_or(0);
+
+                            if nulos_nuevos == nulos_originales {
                             return df_transformado;
                         }
                         continue;
@@ -912,6 +926,8 @@ fn castear_columna(df: DataFrame, columna: &str, tipo: TipoColumna) -> DataFrame
             return df;
         },
         TipoColumna::Numero => {
+
+            if df.column(columna).map(|c| c.dtype() == &DataType::Date).unwrap_or(false) { return df; }
 
             let columna_actual = match df.column(columna) {
                 Ok(c) => c,
