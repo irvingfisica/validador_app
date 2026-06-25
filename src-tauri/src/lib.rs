@@ -1033,6 +1033,12 @@ fn texto_limpio(serie: &Series, fill_value: &str) -> Result<StringChunked, Polar
         let txt = RE_SPACES.replace_all(&txt, " ");
         let txt = txt.trim().to_string();
 
+        let txt = if txt.is_empty() {
+            fill_value.to_string()
+        } else {
+            txt.to_string()
+        };
+
         Some(txt.into())
     });
 
