@@ -16,14 +16,12 @@ Todas las versiones serán detectadas como inseguras por el sistema operativo pu
 
 ### Windows:
 
-- [x64-nsis](https://github.com/irvingfisica/validador_app/releases/download/untagged-4016b63b27de7641cd59/validador_0.1.0_x64-setup.exe)
+- [x64-nsis](https://github.com/irvingfisica/validador_app/releases/download/v1.0.0/validador_1.0.0_x64-setup.exe)
 
-- [x64-msi](https://github.com/irvingfisica/validador_app/releases/download/untagged-4016b63b27de7641cd59/validador_0.1.0_x64_en-US.msi)
+- [x64-msi](https://github.com/irvingfisica/validador_app/releases/download/v1.0.0/validador_1.0.0_x64_en-US.msi)
 
 ### Mac:
 
-- [aarch64-dmg](https://github.com/irvingfisica/validador_app/releases/download/untagged-4016b63b27de7641cd59/validador_0.1.0_aarch64.dmg) (Mac de las nuevas)
-
-- [x64-dmg](https://github.com/irvingfisica/validador_app/releases/download/untagged-f39c84c73fa4c109c749/validador_0.1.0_x64.dmg) (Mac de las viejitas)
+- [x64-dmg](https://github.com/irvingfisica/validador_app/releases/download/v1.0.0/validador_1.0.0_x64.dmg)
 
 
