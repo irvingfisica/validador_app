@@ -18,8 +18,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest' # for Intel based macs.
+          - platform: 'macos-latest' 
             args: '--target x86_64-apple-darwin'
+
+          - platform: windows-latest
+            args: ""
 
     runs-on: ${{ matrix.platform }}
 
@@ -34,7 +37,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.platform == 'macos-latest' && 'x86_64-apple-darwin' || '' }}
 
 
       - name: Install frontend dependencies
