@@ -51,6 +51,53 @@ export function conectarGridInfinito(columnas, totalFilas, esquema) {
     return grid;
 }
 
+export function conectarGridInfinitoRef(columnas, totalFilas, esquema) {
+    const gridDiv = document.querySelector("#myRefGrid");
+    gridDiv.innerHTML = "";
+
+    const columnDefs = columnas.map(col => ({
+        headerName: col,
+        field: col,
+        suppressMovable: true,
+        headerClass: esquema[col],
+        valueGetter: (params) => params.data?. [col] ?? '',
+    }));
+
+    const datasource = {
+        getRows: async (params) => {
+            try {
+                const size = params.endRow - params.startRow;
+                const filas = await invoke("obtener_bloque_ref", {startRow: params.startRow, pageSize: size});
+
+                params.successCallback(filas, totalFilas);
+            } catch (error) {
+                console.error("Error cargando bloque desde back:", error);
+                params.failCallback();
+            }
+        }
+    };
+
+    const gridOptions = {
+        columnDefs: columnDefs,
+        rowModelType: 'infinite',
+        cacheBlockSize: 100,
+        maxBlocksInCache: 10,
+        infiniteInitialRowCount: 1,
+
+        defaultColDef: {
+            flex: 1,
+            minWidth: 150,
+            resizable: true,
+            sortable: false
+        }
+    };
+
+    let grid = createGrid(gridDiv, gridOptions);
+    grid.setGridOption('datasource', datasource);
+
+    return grid;
+}
+
 export function mostrarGrid(selector) {
 
     console.log(window.appState);
@@ -88,4 +135,35 @@ export function mostrarGrid(selector) {
         .style("width", "100%");
 
     window.appState.grid = conectarGridInfinito(reporte.columnas,reporte.total_filas,reporte.esquema);
+}
+
+export function mostrarRef(selector,datosref) {
+
+    if (window.otherGrid) {
+        try {
+            window.otherGrid.destroy();
+        } catch (e) {
+          console.warn("Error al intentar destruir el grid anterior:", e);
+        }
+        window.otherGrid = null;
+    }
+
+    let reporte = datosref;
+
+    const block = d3.select(selector);
+    block.selectAll("*").remove();
+    
+    block.append("h2").html("Vista de la referencia");
+
+    const label = block.append("div").attr("class","label").append("p").html("Tipo de columna (solo número y texto): ");
+    label.selectAll(".laba").data(["Texto","Numero"]).join("span").attr("class",d => d).html(d => d);
+
+    block
+        .append("div")
+        .attr("id", "myRefGrid")
+        .attr("class", "ag-theme-quartz")
+        .style("height", "500px")
+        .style("width", "100%");
+
+    window.otherGrid = conectarGridInfinitoRef(reporte.columnas,reporte.total_filas,reporte.esquema);
 }

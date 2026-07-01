@@ -69,7 +69,7 @@ fn cliente_ckan() -> Result<reqwest::Client, String> {
 
 #[derive(Debug, Deserialize)]
 struct PackageSearchResponse {
-    _count: usize,
+    count: usize,
     results: Vec<Conjunto>,
 }
 
@@ -80,6 +80,15 @@ pub struct Conjunto {
     pub title: String,
     #[serde(default)]
     pub institucion: String,
+    pub resources: Vec<Resource>
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Resource {
+    id: String,
+    name: String,
+    description: String,
+    url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,6 +96,13 @@ pub struct Institucion {
     pub id: String,
     pub name: String,
     pub display_name: String
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Stats {
+    mean: Option<f64>,
+    var: Option<f64>,
+    median: Option<f64>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -157,6 +173,7 @@ pub struct ColaSubidas {
 
 pub struct ContenedorDatos {
     pub dataframe: Mutex<Option<DataFrame>>,
+    pub referencia: Mutex<Option<DataFrame>>,
     pub ruta_original: Mutex<Option<String>>,
     pub ruta_sugerida: Mutex<Option<String>>
 }
@@ -179,6 +196,13 @@ pub struct ReporteCsv {
     pub encoding_detectado: String,
     pub requiere_conversion: bool,
     pub caracteres_corruptos: Vec<CaracterCorrupto>,
+    pub total_filas: usize,
+    pub columnas: Vec<String>,
+    pub esquema: BTreeMap<String, TipoColumna>,
+}
+
+#[derive(Serialize)]
+pub struct ReporteReferencia {
     pub total_filas: usize,
     pub columnas: Vec<String>,
     pub esquema: BTreeMap<String, TipoColumna>,
@@ -276,7 +300,50 @@ async fn ruta_sugerida(
     ruta.clone().ok_or("No hay archivo cargado".to_string())
 }
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+#[tauri::command]
+async fn leer_referencia(url: String, state: State<'_, ContenedorDatos> ) -> Result<ReporteReferencia, String> {
+    let cliente = cliente_ckan()?;
+
+    let bytes = cliente
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .error_for_status()
+        .map_err(|e| e.to_string())?
+        .bytes()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let cursor = Cursor::new(bytes);
+
+    let df = CsvReader::new(cursor)
+        .with_options(
+            CsvReadOptions::default()
+                .with_has_header(true)
+        )
+        .finish()
+        .map_err(|e| e.to_string())?;
+
+    let mut esquema = BTreeMap::new();
+    for col in df.columns() {
+        let nombre_columna = col.name().to_string();
+        let tipo_final = TipoColumna::from_polartype(col.dtype(), false);
+        esquema.insert(nombre_columna, tipo_final);
+    }
+
+    let columnas: Vec<String> = df.get_column_names().iter().map(|s| s.to_string()).collect();
+    let total_filas = df.height();
+
+    *state
+        .referencia
+        .lock()
+        .map_err(|_| "Error al bloquear estado")? = Some(df);
+
+    Ok(ReporteReferencia { total_filas, columnas, esquema })
+}
+
+
 #[tauri::command]
 async fn leer_csv(ruta: String, state: State<'_, ContenedorDatos>) -> Result<ReporteCsv, String> {
     let path = Path::new(&ruta);
@@ -489,6 +556,22 @@ async fn obtener_bloque(start_row: i64, page_size: i64,state: State<'_, Contened
 }
 
 #[tauri::command]
+async fn obtener_bloque_ref(start_row: i64, page_size: i64,state: State<'_, ContenedorDatos>) -> Result<Value, String> {
+    let guardado = state.referencia.lock().map_err(|_| "Error al bloquear el estado")?;
+
+    let df = guardado.as_ref().ok_or("No hay dataframe")?;
+
+    let df_bloque = df.clone().slice(start_row, page_size as usize);
+
+    let mut buf = Vec::new();
+    JsonWriter::new(&mut buf).with_json_format(JsonFormat::Json).finish(&mut df_bloque.clone()).map_err(|e| format!("Error de formato al escribir JSON: {}", e))?;
+
+    let rows: Value = serde_json::from_slice(&buf).map_err(|e| format!("Error al estructurar el JSON: {}", e))?;
+
+    Ok(rows)
+}
+
+#[tauri::command]
 async fn validar_columnas(columnas: Vec<String>) -> Result<Value, String> {
 /*     if columnas.iter().any(|x| x.contains("_duplicate_") || x == "") {
         return Err("Hay columnas vacías o duplicadas".to_string())
@@ -550,6 +633,58 @@ async fn col_values(columna: String, state: State<'_, ContenedorDatos>) -> Resul
     let rows: Value = serde_json::from_slice(&buf).map_err(|e| format!("Error al estructurar el JSON: {}", e))?;
 
     Ok(rows)
+}
+
+#[tauri::command]
+async fn col_values_ref(columna: String, state: State<'_, ContenedorDatos>) -> Result<Value,String> {
+    let mut guardado = state.referencia.lock().map_err(|_| "Error al bloquear el estado")?;
+    let df = guardado.as_mut().ok_or("No hay dataframe")?;
+
+    let serie = df.column(&columna).map_err(|e|format!("No se pudo obtener columna: {}", e))?;
+    let s = serie.as_materialized_series();
+
+    let df_bloque = s.value_counts(true, true, "n".into(), false).map_err(|e| format!("Error al obtener conteos: {}", e))?;
+
+    let mut buf = Vec::new();
+    JsonWriter::new(&mut buf).with_json_format(JsonFormat::Json).finish(&mut df_bloque.clone()).map_err(|e| format!("Error de formato al escribir JSON: {}", e))?;
+
+    let rows: Value = serde_json::from_slice(&buf).map_err(|e| format!("Error al estructurar el JSON: {}", e))?;
+
+    Ok(rows)
+}
+
+#[tauri::command]
+async fn col_stats(columna: String, state: State<'_, ContenedorDatos>) -> Result<Stats,String> {
+    let mut guardado = state.dataframe.lock().map_err(|_| "Error al bloquear el estado")?;
+    let df = guardado.as_mut().ok_or("No hay dataframe")?;
+
+    let serie = df.column(&columna).map_err(|e|format!("No se pudo obtener columna: {}", e))?;
+    let s = serie.as_materialized_series();
+
+    let mean = s.mean();
+    let var = s.var(1);
+    let median = s.median();
+
+    let stats = Stats {mean, var, median};
+
+    Ok(stats)
+}
+
+#[tauri::command]
+async fn col_stats_ref(columna: String, state: State<'_, ContenedorDatos>) -> Result<Stats,String> {
+    let mut guardado = state.referencia.lock().map_err(|_| "Error al bloquear el estado")?;
+    let df = guardado.as_mut().ok_or("No hay dataframe")?;
+
+    let serie = df.column(&columna).map_err(|e|format!("No se pudo obtener columna: {}", e))?;
+    let s = serie.as_materialized_series();
+
+    let mean = s.mean();
+    let var = s.var(1);
+    let median = s.median();
+
+    let stats = Stats {mean, var, median};
+
+    Ok(stats)
 }
 
 #[tauri::command]
@@ -769,6 +904,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(ContenedorDatos { 
             dataframe: Mutex::new(None),
+            referencia: Mutex::new(None),
             ruta_original: Mutex::new(None),
             ruta_sugerida: Mutex::new(None),
         })
@@ -779,12 +915,17 @@ pub fn run() {
                 notify: Notify::new()
             }))
         .invoke_handler(tauri::generate_handler![
-            leer_csv, 
-            obtener_bloque, 
+            leer_csv,
+            leer_referencia,
+            obtener_bloque,
+            obtener_bloque_ref,
             validar_columnas, 
             transformar, 
             col_categos, 
-            col_values, 
+            col_values,
+            col_values_ref,
+            col_stats,
+            col_stats_ref,
             cambiar_valores, 
             exportar_csv, 
             ruta_sugerida, 

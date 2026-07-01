@@ -149,6 +149,7 @@ export async function procesarDrop(event) {
         d3.select("#validacionTool").property("disabled", false);
         d3.select("#incidenciasTool").property("disabled", false);
         d3.select("#categosTool").property("disabled", false);
+        d3.select("#comparaTool").property("disabled", false);
         d3.select("#descargaTool").property("disabled", false);
         d3.select("#subirTool").property("disabled", false);
     } catch (error) {

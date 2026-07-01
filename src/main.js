@@ -1,7 +1,8 @@
 import { save } from '@tauri-apps/plugin-dialog';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+//import * as bootstrap from 'bootstrap'; // incluye CSS+JS si tu bundler lo soporta, o:
 import 'bootstrap/dist/css/bootstrap.min.css';
-import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+import * as bootstrap from 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import "@tarekraafat/autocomplete.js/dist/css/autoComplete.02.css";
 import autoComplete from "@tarekraafat/autocomplete.js";
 import * as d3 from 'd3';
@@ -10,6 +11,7 @@ import * as carga from "./tools/carga.js";
 import * as columns from "./tools/columns.js";
 import * as categos from "./tools/categos.js";
 import * as subir from "./tools/subir.js";
+import * as compara from "./tools/compara.js";
 
 const { invoke } = window.__TAURI__.core;
 
@@ -23,6 +25,7 @@ window.otherGrid = null;
 window.dropUnlisten = null;
 window.procesando = false;
 window.colaUnlisten = null;
+window.refdata = null;
 
 const appWindow = getCurrentWindow();
 
@@ -39,6 +42,7 @@ d3.select("#cargarTool").on("click", carga.intface);
 d3.select("#validacionTool").on("click", columns.intface);
 d3.select("#categosTool").on("click", categos.intface);
 d3.select("#subirTool").on("click", subir.intface);
+d3.select("#comparaTool").on("click", compara.intface);
 
 carga.intface();
 

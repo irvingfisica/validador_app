@@ -1,5 +1,5 @@
 import * as d3 from 'd3';
-import * as bootstrap from 'bootstrap';
+import { Toast } from 'bootstrap';
 
 export function limpiarEvento() {
   if (window.appState.colaUnlisten) {
@@ -53,7 +53,7 @@ export function showToast(message, type = "danger") {
 
   container.appendChild(toastEl);
 
-  const toast = new bootstrap.Toast(toastEl, { delay: 4000 });
+  const toast = new Toast(toastEl, { delay: 4000 });
   toast.show();
 
   toastEl.addEventListener("hidden.bs.toast", () => toastEl.remove());

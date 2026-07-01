@@ -2,8 +2,6 @@ const { invoke } = window.__TAURI__.core;
 import { AllCommunityModule, ModuleRegistry, createGrid } from 'ag-grid-community';
 import { listen } from "@tauri-apps/api/event";
 
-
-import autoComplete from "@tarekraafat/autocomplete.js";
 import * as d3 from 'd3';
 import * as utils from "./utils.js";
 
