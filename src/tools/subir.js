@@ -27,7 +27,13 @@ export async function intface() {
         "Esta herramienta permite subir archivos al repositorio de la PNDA. Solo está destinada a usarse por el personal de la DDA. Es necesario que tu VPN esté conectado.",
         );
 
-    let sugerido = await invoke("ruta_sugerida");
+    let sugerido;
+    try {
+        sugerido = await invoke("ruta_sugerida");
+    } catch (error) {
+        utils.showToast(`No se pudo obtener sugerencia para nombre. Motivo: ${error}`,"warning");
+        sugerido = "archivo.csv"
+    } 
 
     const controles = desc.append("div").attr("class","row");
     controles.append("h3").html("Introduce los siguientes datos");
@@ -127,10 +133,10 @@ export async function intface() {
         actualizarCola();
     });
 
-    const cola = contenedor.append("div").attr("class","row mb-5");
-    cola.append("h3").html("Cola de subidas");
+    const colad = contenedor.append("div").attr("class","row mb-5");
+    colad.append("h3").html("Cola de subidas");
 
-    cola.append("div").attr("id","tablaCola");
+    colad.append("div").attr("id","tablaCola");
 
     actualizarCola();
 
@@ -143,7 +149,14 @@ async function actualizarCola() {
         return;
     }
 
-    const cola = await invoke("obtener_cola");
+    let cola;
+    try {
+        cola = await invoke("obtener_cola");
+    } catch (error) {
+        utils.showToast(`No se pudo obtener la cola. Motivo: ${error}`, "danger");
+    return;
+    }
+
     cola.reverse();
     console.log(cola);
 

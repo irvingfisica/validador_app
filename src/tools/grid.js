@@ -71,6 +71,7 @@ export function conectarGridInfinitoRef(columnas, totalFilas, esquema) {
 
                 params.successCallback(filas, totalFilas);
             } catch (error) {
+                utils.showToast("No fue posible obtener más filas.","warning");
                 console.error("Error cargando bloque desde back:", error);
                 params.failCallback();
             }

@@ -137,8 +137,8 @@ export async function procesarDrop(event) {
                 .html(window.appState.caracteres_corruptos.reduce((a,b) => a + b.caracter + ", ", " "));
         }
 
-        const muestra = await invoke("obtener_bloque",{startRow: 0, pageSize: 10});
-        console.log(muestra);
+/*         const muestra = await invoke("obtener_bloque",{startRow: 0, pageSize: 10});
+        console.log(muestra); */
 
         grid.mostrarGrid("#gridBlock");
 
@@ -153,7 +153,6 @@ export async function procesarDrop(event) {
         d3.select("#descargaTool").property("disabled", false);
         d3.select("#subirTool").property("disabled", false);
     } catch (error) {
-        utils.hideSpinner();
         utils.showToast(`No se pudo procesar el archivo. Motivo: ${error}`,"danger");
     } finally {
 

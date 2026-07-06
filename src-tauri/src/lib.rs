@@ -424,10 +424,12 @@ async fn leer_csv(ruta: String, state: State<'_, ContenedorDatos>) -> Result<Rep
             .with_dtype_overwrite(Some(Arc::new(types)))
         ).finish().map_err(|e| format!("No se pudo procesar el texto: {}", e))?;
 
-        df = df.lazy()
-        .with_columns([
-            col("*").str().strip_chars(lit(" "))
-        ]).collect().map_err(|e| format!("Error limpiando espacios extra: {}", e))?;
+    df = df.lazy()
+    .with_columns([
+        when(col("*").str().strip_chars(lit(" ")).eq(lit("")))
+            .then(lit(NULL))
+            .otherwise(col("*").str().strip_chars(lit(" "))).name().keep()
+    ]).collect().map_err(|e| format!("Error limpiando espacios extra: {}", e))?;
 
         df = df.lazy().filter(any_horizontal([col("*").is_not_null().and(col("*").neq(lit("")))]).map_err(|_|"Error en el filtrado de filas vacías")?)
         .collect().map_err(|e| format!("Error limpiando filas vacías: {}", e))?;

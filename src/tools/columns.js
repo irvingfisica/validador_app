@@ -33,7 +33,7 @@ export async function intface() {
 
     grid.mostrarGrid("#gridBlock");
 
-    herramienta_tabla("#colBlock");
+    await herramienta_tabla("#colBlock");
     
 
 }
@@ -56,15 +56,27 @@ async function promover() {
     utils.setStatus("Procesando cambios...");
     utils.showSpinner();
 
-    console.log(instrc);
-    const respuesta = await invoke("transformar",{transvec: instrc});
-    console.log(respuesta);
+
+    let respuesta;
+    try {
+        respuesta = await invoke("transformar",{transvec: instrc});
+        console.log(respuesta);
+    } catch(error) {
+        utils.hideSpinner();
+        utils.clearStatus();
+        utils.showToast(`No se pudo hacer la transformación. Motivo: ${error}`,"danger");
+        
+        grid.mostrarGrid("#gridBlock");
+        await herramienta_tabla("#colBlock");
+
+        return
+    } 
 
     window.appState.columnas = respuesta.columnas;
     window.appState.esquema = respuesta.esquema;
 
     grid.mostrarGrid("#gridBlock");
-    herramienta_tabla("#colBlock");
+    await herramienta_tabla("#colBlock");
     
     utils.setStatus("Cambios realizados");
     utils.hideSpinner();
@@ -82,7 +94,14 @@ async function herramienta_tabla(selector) {
         "Valida el nombre a usar en cada columna y el tipo de datos que debería de contener. La herramineta transformará los datos y ajustará algunos detalles para que la columna satisfaga los criterios",
         );
 
-    const vcols = await invoke("validar_columnas",{columnas: window.appState.columnas});
+    let vcols;
+    try {
+        vcols = await invoke("validar_columnas",{columnas: window.appState.columnas});
+    } catch(error) {
+        utils.showToast(`No se pudo validar columnas. Motivo: ${error}`,"danger");
+        return;
+    }
+
     console.log(vcols);
 
     const nrow = cols.append("div").attr("class","row");

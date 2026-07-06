@@ -36,7 +36,7 @@ export async function intface() {
 
     grid.mostrarGrid("#gridBlock");
 
-    herramienta_columnas("#colBlock");
+    await herramienta_columnas("#colBlock");
 
 }
 
@@ -130,7 +130,13 @@ async function herramienta_columnas(selector) {
 async function colcategos(e,d) {
     console.log(d);
     d3.select("#colactiva").html("<strong>" + d["nombre"] + "</strong>");
-    const conteos = await invoke("col_values", {columna: d.nombre});
+    let conteos;
+    try {
+        conteos = await invoke("col_values", {columna: d.nombre});
+    } catch (error) {
+        utils.showToast(`No se pudo procesar el archivo. Motivo: ${error}`,"danger");
+        return;
+    }
 
     const filas = conteos.map(ele => ({
         original: ele[d.nombre],
@@ -210,17 +216,21 @@ async function colcategos(e,d) {
         utils.setStatus("Procesando cambios...");
         utils.showSpinner();
 
-        await invoke("cambiar_valores", {
+        try {
+            await invoke("cambiar_valores", {
             columna: d.nombre,
             cambios: cambios
         });
-
-        grid.mostrarGrid("#gridBlock");
-
-        herramienta_columnas("#colBlock");
-
         utils.setStatus("Cambios realizados");
-        utils.hideSpinner();
+        } catch (error) {
+            utils.showToast(`No se pudo procesar el cambio. Motivo: ${error}`,"danger");
+            utils.clearStatus();
+            utils.hideSpinner();
+        } finally {
+            grid.mostrarGrid("#gridBlock");
+            herramienta_columnas("#colBlock");
+            utils.hideSpinner();
+        }
 
     });
 }

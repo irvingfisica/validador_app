@@ -29,12 +29,21 @@ export async function intface() {
 
     desc.append("div").attr("class","mt-3").attr("id","recursos");
 
-    utils.setStatus("Obteniendo instituciones...");
-    utils.showSpinner();
-    let instituciones = await invoke("obtener_instituciones");
-    console.log(instituciones);
-    utils.hideSpinner();
-    utils.clearStatus();
+    let instituciones;
+    try {
+        utils.setStatus("Obteniendo instituciones...");
+        utils.showSpinner();
+        instituciones = await invoke("obtener_instituciones");
+        console.log(instituciones);
+        utils.hideSpinner();
+        utils.clearStatus();
+    } catch(error) {
+        utils.hideSpinner();
+        utils.clearStatus();
+        utils.showToast(`No se pudo obtener las instituciones. Motivo: ${error}`,"danger");
+        return;
+    }
+    
 
     const acjs = new autoComplete({
         selector: "#buscainst",
@@ -67,11 +76,21 @@ export async function intface() {
     });
 
     async function obtenerConjuntos(name,institucion) {
-        utils.setStatus("Obteniendo recursos...");
-        utils.showSpinner();
-        let conjuntos = await invoke("obtener_conjuntos",{institucion: name});
-        utils.hideSpinner();
-        utils.clearStatus();
+
+        let conjuntos;
+        try {
+            utils.setStatus("Obteniendo recursos...");
+            utils.showSpinner();
+            conjuntos = await invoke("obtener_conjuntos",{institucion: name});
+            utils.hideSpinner();
+            utils.clearStatus();
+        } catch(error) {
+            utils.hideSpinner();
+            utils.clearStatus();
+            utils.showToast(`No se pudo obtener los conjuntos y recursos. Motivo: ${error}`,"danger");
+            return;
+        }
+        
 
         const recursos = d3.select("#recursos");
         recursos.selectAll("*").remove();
@@ -105,13 +124,18 @@ export async function intface() {
             .on("click",async (e,p)  => {
                 utils.setStatus("Descargando base desde PNDA...");
                 utils.showSpinner();
-                window.refdata = await invoke("leer_referencia",{url:p.url});
-                window.refdata.recurso = p;
-                window.refdata.institucion = institucion;
-                console.log(refdata);
-                utils.hideSpinner();
-                utils.clearStatus();
-                await comparar(window.refdata);
+                try {
+                    window.refdata = await invoke("leer_referencia",{url:p.url});
+                    window.refdata.recurso = p;
+                    window.refdata.institucion = institucion;
+                    console.log(refdata);
+                    await comparar(window.refdata);
+                } catch (error) {
+                    utils.showToast(`No se pudo procesar la base. Motivo: ${error}`,"danger");
+                } finally {
+                    utils.hideSpinner();
+                    utils.clearStatus();
+                }
             });
             
     }
@@ -159,12 +183,21 @@ async function comparar(datos) {
         .style("cursor","pointer")
         .html(d => d)
         .on("click", async (e,p) => {
+            let stats;
             if (window.appState.esquema[p] == "Numero") {
-                let stats = await invoke("col_stats",{columna:p});
-                numericas("#statsact", stats);
+                try {
+                    stats = await invoke("col_stats",{columna:p});
+                    numericas("#statsact", stats);
+                } catch (error) {
+                    utils.showToast(`No se pudo mostrar la información. Motivo: ${error}`,"warning");
+                }
             } else {
-                let stats = await invoke("col_values",{columna:p});
-                categoricas("#statsact",stats,p);
+                try {
+                    stats = await invoke("col_values",{columna:p});
+                    categoricas("#statsact",stats,p);
+                } catch (error) {
+                    utils.showToast(`No se pudo mostrar la información. Motivo: ${error}`,"warning");
+                }
             }
         });
 
@@ -178,12 +211,21 @@ async function comparar(datos) {
         .style("cursor","pointer")
         .html(d => d)
         .on("click", async (e,p) => {
+            let stats;
             if (datos.esquema[p] == "Numero") {
-                let stats = await invoke("col_stats_ref",{columna:p});
-                numericas("#statsref", stats);
+                try {
+                    stats = await invoke("col_stats_ref",{columna:p});
+                    numericas("#statsref", stats);
+                } catch (error) {
+                    utils.showToast(`No se pudo mostrar la información. Motivo: ${error}`,"warning");
+                }
             } else {
-                let stats = await invoke("col_values_ref",{columna:p});
-                categoricas("#statsref",stats,p);
+                try {
+                    stats = await invoke("col_values_ref",{columna:p});
+                    categoricas("#statsref",stats,p);
+                } catch (error) {
+                    utils.showToast(`No se pudo mostrar la información. Motivo: ${error}`,"warning");
+                }
             }
         });
 }

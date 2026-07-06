@@ -12,6 +12,7 @@ import * as columns from "./tools/columns.js";
 import * as categos from "./tools/categos.js";
 import * as subir from "./tools/subir.js";
 import * as compara from "./tools/compara.js";
+import * as utils from "./tools/utils.js";
 
 const { invoke } = window.__TAURI__.core;
 
@@ -49,6 +50,7 @@ carga.intface();
 d3.select("#descargaTool")
     .on("click", async () => {
 
+        try {
         const nombre = await invoke("ruta_sugerida");
 
         const ruta = await save({
@@ -69,4 +71,7 @@ d3.select("#descargaTool")
         await invoke("exportar_csv", { ruta });
 
         alert("Archivo exportado");
+    } catch (error) {
+        utils.showToast(`No se pudo exportar. Motivo: ${error}`,"danger");
+    }
     });
