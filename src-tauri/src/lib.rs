@@ -464,6 +464,9 @@ async fn leer_csv(ruta: String, state: State<'_, ContenedorDatos>) -> Result<Rep
 
     *ruta_sugerida = Some(nombre_archivo_sugerido(ruta.as_str()));
 
+    let mut referencia = state.referencia.lock().map_err(|_| "Error al bloquear el estado")?;
+    *referencia = None;
+
     Ok(ReporteCsv { encoding_detectado: nombre_encoding, requiere_conversion, caracteres_corruptos, total_filas, columnas, esquema })
 }
 

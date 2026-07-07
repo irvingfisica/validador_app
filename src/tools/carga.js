@@ -110,6 +110,7 @@ export async function procesarDrop(event) {
           utils.showSpinner();
 
         const reporte = await invoke("leer_csv", { ruta: rutaAbsoluta });
+        window.refdata = null;
 
         if (reporte.encoding_detectado != "UTF-8") {
           utils.showToast("El encoding del archivo no era UTF-8, se transformó", "warning");
@@ -127,6 +128,7 @@ export async function procesarDrop(event) {
         utils.setStatus(`Listo: ${utils.formato(reporte.total_filas)} filas; ${utils.formato(reporte.columnas.length)} columnas.`);
 
         Object.assign(window.appState, reporte);
+        console.log(window.appState);
 
         if (window.appState.caracteres_corruptos.length > 0) {
             const enczone = d3.select("#errorZone");
