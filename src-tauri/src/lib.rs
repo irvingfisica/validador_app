@@ -146,6 +146,12 @@ pub enum EstadoSubida {
 }
 
 #[derive(Clone, Serialize)]
+pub enum TipoErrorSubida {
+    ArchivoExistente,
+    Otros
+}
+
+#[derive(Clone, Serialize)]
 pub struct TrabajoSubida {
     pub id: u64,
 
@@ -161,7 +167,8 @@ pub struct TrabajoSubida {
     pub estado: EstadoSubida,
 
     pub resultado: Option<SubidaRepo>,
-    pub error: Option<String>
+    pub error: Option<String>,
+    pub tipo_error: Option<TipoErrorSubida>
 }
 
 pub struct ColaSubidas {
@@ -842,7 +849,8 @@ async fn agregar_subida(
         archivo_remoto: ruta_sugerida,
         estado: EstadoSubida::EnCola,
         resultado: None,
-        error:None
+        error:None,
+        tipo_error: None
     };
 
     cola.pendientes.lock().unwrap().push_back(trabajo);
@@ -1549,7 +1557,7 @@ async fn subir_archivo_repo(repo: &RepoConexion, ruta_local: &PathBuf, ruta_remo
     let mut remoto = repo.sftp
     .open_with_flags(ruta_remota,
         OpenFlags::CREATE
-            | OpenFlags::TRUNCATE
+            | OpenFlags::EXCLUDE
             | OpenFlags::WRITE,
     )
     .await
@@ -1680,8 +1688,6 @@ fn limpiar_temporales() -> Result<(), String> {
 
 pub async fn worker_subidas(cola: Arc<ColaSubidas>, app: tauri::AppHandle,) {
     loop {
-
-
         let trabajo = {
             let mut pendientes = cola.pendientes.lock().unwrap();
             pendientes.pop_front()
@@ -1751,6 +1757,11 @@ async fn procesar_subida(job: &mut TrabajoSubida) -> Result<(), String> {
         let destino =
             ruta_remota
             + &job.archivo_remoto;
+
+        if repo.sftp.try_exists(&destino).await.map_err(|e|format!("No se pudo verificar existencia de archivo {e}"))? {
+            job.tipo_error = Some(TipoErrorSubida::ArchivoExistente);
+            return Err("Ya existe un archivo con ese nombre en el repositorio. Cámbia el nombre y vuelve a subirlo.".into());
+        }
 
         let subida = subir_archivo_repo(
             &repo,

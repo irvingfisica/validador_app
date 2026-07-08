@@ -188,27 +188,30 @@ async function actualizarCola() {
         if (d.estado === "Error") {
             d3.select(this).append("p").style("color","red").html(d.error);
 
-            d3.select(this)
-            .append("button")
-            .attr("class", "btn btn-warning btn-sm")
-            .text("Reintentar")
-            .on("click", async () => {
+            if (d.tipo_error !== "ArchivoExistente") {
 
-                try {
-                    await invoke(
-                        "reintentar_subida",
-                        { id: d.id }
-                    );
+                d3.select(this)
+                    .append("button")
+                    .attr("class", "btn btn-warning btn-sm")
+                    .text("Reintentar")
+                    .on("click", async () => {
 
-                } catch (e) {
-                    utils.showToast(
-                        `No se pudo reintentar: ${e}`,
-                        "warning"
-                    );
-                } finally {
-                    await actualizarCola()
-                }
-            });
+                        try {
+                            await invoke(
+                                "reintentar_subida",
+                                { id: d.id }
+                            );
+
+                        } catch (e) {
+                            utils.showToast(
+                                `No se pudo reintentar: ${e}`,
+                                "warning"
+                            );
+                        } finally {
+                            await actualizarCola()
+                        }
+                    });
+            }
         }
     })
 }
