@@ -16,12 +16,12 @@ Todas las versiones serán detectadas como inseguras por el sistema operativo pu
 
 ### Windows:
 
-- [x64-nsis](https://github.com/irvingfisica/validador_app/releases/download/v1.0.3/validador_1.0.3_x64-setup.exe)
+- [x64-nsis](https://github.com/irvingfisica/validador_app/releases/download/v1.0.4/validador_1.0.4_x64-setup.exe)
 
-- [x64-msi](https://github.com/irvingfisica/validador_app/releases/download/v1.0.3/validador_1.0.3_x64_en-US.msi)
+- [x64-msi](https://github.com/irvingfisica/validador_app/releases/download/v1.0.4/validador_1.0.4_x64_en-US.msi)
 
 ### Mac:
 
-- [x64-dmg](https://github.com/irvingfisica/validador_app/releases/download/v1.0.3/validador_1.0.3_x64.dmg)
+- [x64-dmg](https://github.com/irvingfisica/validador_app/releases/download/v1.0.4/validador_1.0.4_x64.dmg)
 
 
