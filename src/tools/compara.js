@@ -12,7 +12,7 @@ export async function intface() {
     const contenedor = d3.select("#mesaTrabajo");
     contenedor.selectAll("*").remove();
 
-    const desc = contenedor.append("div").attr("class", "col-md-12");
+    const desc = contenedor.append("div").attr("class", "col-12");
 
     desc.append("h1").html("Herramienta de comparación");
     desc.append("p")
@@ -165,9 +165,9 @@ async function comparar(datos) {
 
     const mesa = recursos.append("div").attr("class","row mt-5 mb-5");
 
-    const actual = mesa.append("div").attr("class","col-md-6")
+    const actual = mesa.append("div").attr("class","col-6")
     actual.append("div").attr("id","actual");
-    const refere = mesa.append("div").attr("class","col-md-6")
+    const refere = mesa.append("div").attr("class","col-6")
     refere.append("div").attr("id","referencia");
 
     grid.mostrarGrid("#actual");

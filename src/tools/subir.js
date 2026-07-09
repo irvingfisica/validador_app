@@ -19,7 +19,7 @@ export async function intface() {
     const contenedor = d3.select("#mesaTrabajo");
     contenedor.selectAll("*").remove();
 
-    const desc = contenedor.append("div").attr("class", "col-md-12");
+    const desc = contenedor.append("div").attr("class", "col-12");
 
     desc.append("h1").html("Herramienta de subida");
     desc.append("p")
@@ -38,12 +38,12 @@ export async function intface() {
     const controles = desc.append("div").attr("class","row");
     controles.append("h3").html("Introduce los siguientes datos");
 
-    const filepar = controles.append("div").attr("class","col-md-12");
+    const filepar = controles.append("div").attr("class","col-12");
     filepar.append("label").attr("for","filename").attr("class","form-label mt-3").html("Nombre de archivo a usar:");
     filepar.append("input").attr("type","text").attr("class","form-control").attr("id","filename").attr("value",sugerido);
 
-    const conectpar = controles.append("div").attr("class","col-md-6");
-    const folderpar = controles.append("div").attr("class","col-md-6");
+    const conectpar = controles.append("div").attr("class","col-6");
+    const folderpar = controles.append("div").attr("class","col-6");
 
     conectpar.append("label").attr("for","usuario").attr("class","form-label mt-3").html("Usuario:");
     conectpar.append("input").attr("type","text").attr("class","form-control").attr("id","usuario");

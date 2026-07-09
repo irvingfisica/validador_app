@@ -11,7 +11,7 @@ export async function intface() {
     const contenedor = d3.select("#mesaTrabajo");
     contenedor.selectAll("*").remove();
 
-    const desc = contenedor.append("div").attr("class", "col-md-12");
+    const desc = contenedor.append("div").attr("class", "col-12");
 
     desc.append("h1").html("Herramienta de columnas");
     desc.append("p")
@@ -19,17 +19,17 @@ export async function intface() {
         "La herramienta sugiere nombres de columna que puedes editar. Permite aplicar transformaciones a las columnas para corregir características del texto, o transformar en columnas numéricas o de fecha.",
         );
 
-    const dropd = contenedor.append("div").attr("class", "col-md-12");
+    const dropd = contenedor.append("div").attr("class", "col-12");
 
     const framec = dropd
         .append("div")
         .attr("id", "gridBlock")
-        .attr("class", "col-md-12 bloque");
+        .attr("class", "col-12 bloque");
 
     contenedor
         .append("div")
         .attr("id", "colBlock")
-        .attr("class", "col-md-12 bloque");
+        .attr("class", "col-12 bloque");
 
     grid.mostrarGrid("#gridBlock");
 
@@ -105,8 +105,8 @@ async function herramienta_tabla(selector) {
     console.log(vcols);
 
     const nrow = cols.append("div").attr("class","row");
-    nrow.append("div").attr("class","col-md-1");
-    const ncols = nrow.append("div").attr("class","col-md-10");
+    nrow.append("div").attr("class","col-1");
+    const ncols = nrow.append("div").attr("class","col-10");
 
     const tabla = ncols.append("table").attr("class","table").attr("id","tabla-cols");
 

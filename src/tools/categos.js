@@ -14,7 +14,7 @@ export async function intface() {
     const contenedor = d3.select("#mesaTrabajo");
     contenedor.selectAll("*").remove();
 
-    const desc = contenedor.append("div").attr("class", "col-md-12");
+    const desc = contenedor.append("div").attr("class", "col-12");
 
     desc.append("h1").html("Herramienta de valores");
     desc.append("p")
@@ -22,17 +22,17 @@ export async function intface() {
         "La herramienta permite analizar las columnas textuales que codifican categorías y modificar sus valores para homologarlos.",
         );
 
-    const dropd = contenedor.append("div").attr("class", "col-md-12");
+    const dropd = contenedor.append("div").attr("class", "col-12");
 
     const framec = dropd
         .append("div")
         .attr("id", "gridBlock")
-        .attr("class", "col-md-12 bloque");
+        .attr("class", "col-12 bloque");
 
     contenedor
         .append("div")
         .attr("id", "colBlock")
-        .attr("class", "col-md-12 bloque");
+        .attr("class", "col-12 bloque");
 
     grid.mostrarGrid("#gridBlock");
 
@@ -47,8 +47,8 @@ async function herramienta_columnas(selector) {
     cols.append("h2").html("Editor de valores");
 
     const mtool = cols.append("div").attr("class","row");
-    const tdiv = mtool.append("div").attr("class","col-md-6");
-    const ediv = mtool.append("div").attr("class","col-md-6");
+    const tdiv = mtool.append("div").attr("class","col-6");
+    const ediv = mtool.append("div").attr("class","col-6");
 
     ediv.append("p").html('Columna seleccionada: <span id="colactiva"></span>. Edita los valores incorrectos');
     ediv.append("div").attr("id","otherGrid")

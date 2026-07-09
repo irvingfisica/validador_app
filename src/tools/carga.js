@@ -11,7 +11,7 @@ export function intface() {
   const contenedor = d3.select("#mesaTrabajo");
   contenedor.selectAll("*").remove();
 
-  const desc = contenedor.append("div").attr("class", "col-md-12");
+  const desc = contenedor.append("div").attr("class", "col-12");
 
   desc.append("h1").html("Herramientas de limpieza para CSV");
   desc.append("h2").html("¿Cómo funciona esta herramienta?");
@@ -27,16 +27,16 @@ export function intface() {
   const drop = dropd
     .append("div")
     .attr("id", "dropZone")
-    .attr("class", "drop-zone col-md-12");
+    .attr("class", "drop-zone col-12");
   drop.append("p").html("Arrastra un CSV.");
 
   dropd.append("div")
-        .attr("id","errorZone").attr("class","col-md-12 mt-3").html("");
+        .attr("id","errorZone").attr("class","col-12 mt-3").html("");
 
   const framec = dropd
     .append("div")
     .attr("id", "gridBlock")
-    .attr("class", "col-md-12 bloque mt-5");
+    .attr("class", "col-12 bloque mt-5");
 
   if (window.appState.grid) {
     d3.select("#dropZone p").html(
