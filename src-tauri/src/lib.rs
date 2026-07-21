@@ -322,15 +322,32 @@ async fn leer_referencia(url: String, state: State<'_, ContenedorDatos> ) -> Res
         .await
         .map_err(|e| e.to_string())?;
 
+    let mut header_cursor = Cursor::new(bytes.clone());
+
+    let extractor_headers = CsvReader::new(&mut header_cursor).with_options(
+            CsvReadOptions::default()
+            .with_has_header(true)
+            .with_n_rows(Some(0))
+            .with_infer_schema_length(Some(0))
+        );
+
+    let df_headers = extractor_headers.finish().map_err(|e| format!("Error al mapear columnas: {}", e))?;
+    let ncols = df_headers.width();
+    let types = vec![DataType::String;ncols];
+
     let cursor = Cursor::new(bytes);
 
-    let df = CsvReader::new(cursor)
+    let mut df = CsvReader::new(cursor)
         .with_options(
             CsvReadOptions::default()
-                .with_has_header(true)
+            .with_has_header(true)
+            .with_dtype_overwrite(Some(Arc::new(types)))
         )
         .finish()
         .map_err(|e| e.to_string())?;
+
+    df = castear_frame(df, TipoColumna::Fecha);
+    df = castear_frame(df, TipoColumna::Numero);
 
     let mut esquema = BTreeMap::new();
     for col in df.columns() {
