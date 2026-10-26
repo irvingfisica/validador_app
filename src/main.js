@@ -4,6 +4,9 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import * as bootstrap from 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import "@tarekraafat/autocomplete.js/dist/css/autoComplete.02.css";
+// CSS clásico sin anidamiento: el que AG Grid inyecta usa CSS nesting y se rompe en WebKit de macOS antiguos.
+import 'ag-grid-community/styles/ag-grid.css';
+import 'ag-grid-community/styles/ag-theme-quartz.css';
 import autoComplete from "@tarekraafat/autocomplete.js";
 import * as d3 from 'd3';
 

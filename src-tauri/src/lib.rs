@@ -7,7 +7,7 @@ use std::io::{Read,BufReader,Cursor};
 use std::path::{Path,PathBuf};
 use std::fs::File;
 use std::io::Write;
-use std::env;
+use std::{env, println};
 use serde::{Serialize,Deserialize};
 use std::sync::Mutex;
 use tauri::State;

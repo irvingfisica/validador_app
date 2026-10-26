@@ -181,6 +181,7 @@ async function colcategos(e,d) {
 
     const gridOptions = {
         columnDefs: columnDefs,
+        theme: 'legacy',
         rowData: filas,
         autoSizeStrategy: {
             type: 'fitGridWidth',

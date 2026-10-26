@@ -32,6 +32,7 @@ export function conectarGridInfinito(columnas, totalFilas, esquema) {
 
     const gridOptions = {
         columnDefs: columnDefs,
+        theme: 'legacy',
         rowModelType: 'infinite',
         cacheBlockSize: 100,
         maxBlocksInCache: 10,
@@ -80,6 +81,7 @@ export function conectarGridInfinitoRef(columnas, totalFilas, esquema) {
 
     const gridOptions = {
         columnDefs: columnDefs,
+        theme: 'legacy',
         rowModelType: 'infinite',
         cacheBlockSize: 100,
         maxBlocksInCache: 10,
