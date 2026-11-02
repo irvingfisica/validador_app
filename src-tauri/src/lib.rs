@@ -308,19 +308,13 @@ async fn ruta_sugerida(
 }
 
 #[tauri::command]
-async fn leer_referencia(url: String, state: State<'_, ContenedorDatos> ) -> Result<ReporteReferencia, String> {
-    let cliente = cliente_ckan()?;
+async fn leer_referencia(url: String, host: String, usuario: String, state: State<'_, ContenedorDatos> ) -> Result<ReporteReferencia, String> {
+    let ruta_remota = ruta_privada(&url)?;
 
-    let bytes = cliente
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .error_for_status()
-        .map_err(|e| e.to_string())?
-        .bytes()
-        .await
-        .map_err(|e| e.to_string())?;
+    let repo = conectar_repo(&host, &usuario).await.map_err(|e|format!("No se pudo conectar al repo {e}"))?;
+    let descarga = descargar_archivo_repo(&repo, &ruta_remota).await;
+    destruir(repo).await;
+    let bytes = descarga?;
 
     let mut header_cursor = Cursor::new(bytes.clone());
 
@@ -1603,6 +1597,19 @@ async fn subir_archivo_repo(repo: &RepoConexion, ruta_local: &PathBuf, ruta_remo
 
 fn ruta_publica(ruta_remota: &str) -> String {
     ruta_remota.replace("/mnt/nfs/datasets/","https://repodatos.atdt.gob.mx/")
+}
+
+fn ruta_privada(url: &str) -> Result<String, String> {
+    url.strip_prefix("https://repodatos.atdt.gob.mx/")
+        .map(|resto| "/mnt/nfs/datasets/".to_string() + resto)
+        .ok_or(format!("El recurso no está en el repositorio de datos: {url}"))
+}
+
+async fn descargar_archivo_repo(repo: &RepoConexion, ruta_remota: &str) -> Result<Vec<u8>, String> {
+    repo.sftp
+        .read(ruta_remota)
+        .await
+        .map_err(|e| format!("Error leyendo archivo remoto {ruta_remota}: {:?}", e))
 }
 
 async fn crear_ruta_remota(repo: &RepoConexion, institucion: &str, conjunto: &str) -> Result<String,String> {
