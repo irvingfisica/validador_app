@@ -20,7 +20,27 @@ export async function intface() {
         "Esta herramienta permite comparar el archivo que estas limpiando con una base de la PNDA.",
         );
 
-    desc.append("p").html("Busca una institución")
+    desc.append("p").html("Las bases se descargan del repositorio, es necesario que tu VPN esté conectado.");
+
+    const conexion = desc.append("div").attr("class","row");
+    const userpar = conexion.append("div").attr("class","col-6");
+    const serverpar = conexion.append("div").attr("class","col-6");
+
+    userpar.append("label").attr("for","usuario").attr("class","form-label").html("Usuario:");
+    userpar.append("input").attr("type","text").attr("class","form-control").attr("id","usuario");
+
+    serverpar.append("label").attr("for","server").attr("class","form-label").html("Servidor:");
+    serverpar.append("input").attr("type","text").attr("class","form-control").attr("id","server");
+
+    if (window.appState.server) {
+        d3.select("#server").node().value = window.appState.server
+    };
+
+    if (window.appState.user) {
+        d3.select("#usuario").node().value = window.appState.user
+    };
+
+    desc.append("p").attr("class","mt-3").html("Busca una institución")
 
     desc.append("div").attr("class","buscainst-wrapper mt-3")
         .append("input").attr("id","buscainst").attr("type","text")
@@ -122,10 +142,18 @@ export async function intface() {
             .join("tr").append("td").html(p => p.name)
             .style("cursor","pointer")
             .on("click",async (e,p)  => {
+                const servidor = window.appState.server = d3.select("#server").node().value.trim();
+                const usuario = window.appState.user = d3.select("#usuario").node().value.trim();
+
+                if (!servidor || !usuario) {
+                    utils.showToast("Los campos usuario y servidor son obligatorios.","danger");
+                    return;
+                }
+
                 utils.setStatus("Descargando base desde PNDA...");
                 utils.showSpinner();
                 try {
-                    window.refdata = await invoke("leer_referencia",{url:p.url});
+                    window.refdata = await invoke("leer_referencia",{url:p.url, host:servidor, usuario:usuario});
                     window.refdata.recurso = p;
                     window.refdata.institucion = institucion;
                     console.log(refdata);
